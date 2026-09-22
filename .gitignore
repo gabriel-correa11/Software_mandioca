@@ -1,0 +1,35 @@
+# IDE and generated build files
+.idea/
+.vs/
+.vscode/
+**/bin/
+**/obj/
+*.user
+*.suo
+TestResults/
+coverage/
+
+# Local SDK and package cache
+.dotnet/
+.dotnet-home/
+.nuget/
+dotnet-install.ps1
+
+# User data and local configuration
+.codex/
+*.db
+*.db-*
+*.sqlite
+*.sqlite-*
+*.sqlite3
+*.sqlite3-*
+*.bak
+*.backup
+*.log
+/logs/
+/backups/
+/data/
+/legacy-data/
+/historical-data/
+/exports/
+/receipts/
