@@ -1,11 +1,16 @@
 using System.Globalization;
 using System.Reflection;
 using Microsoft.Data.Sqlite;
+using Serilog;
 
 namespace MandiocaCaipira.App.Data;
 
-public sealed class InicializadorBanco(BancoSqlite banco, string diretorioBackups)
+public sealed class InicializadorBanco
 {
+    private readonly BancoSqlite _banco;
+    private readonly string _diretorioBackups;
+    private readonly ILogger _logger;
+
     private static readonly string[] ObjetosObrigatorios =
     [
         "Cliente", "Venda", "Pagamento", "AlocacaoPagamento",
@@ -15,26 +20,72 @@ public sealed class InicializadorBanco(BancoSqlite banco, string diretorioBackup
         "TR_Cliente_SemExclusao", "TR_Venda_ClienteAtivo", "TR_Pagamento_ClienteAtivo"
     ];
 
+    public InicializadorBanco(BancoSqlite banco, string diretorioBackups, ILogger? logger = null)
+    {
+        _banco = banco;
+        _diretorioBackups = diretorioBackups;
+        _logger = logger ?? Log.Logger;
+    }
+
     public void Inicializar()
     {
-        Directory.CreateDirectory(Path.GetDirectoryName(banco.CaminhoBanco)!);
-        using var connection = banco.AbrirConexao();
-        var version = Versao(connection);
-        if (version > 1)
-            throw new InvalidOperationException("O banco foi criado por uma versão mais recente da aplicação.");
-        if (version == 1)
+        try
         {
+            Directory.CreateDirectory(Path.GetDirectoryName(_banco.CaminhoBanco)!);
+            using var connection = _banco.AbrirConexao();
+            var version = Versao(connection);
+            _logger.Information("Inicializando banco SQLite na versão de schema {SchemaVersion}", version);
+            if (version > 1)
+                throw new InvalidOperationException("O banco foi criado por uma versão mais recente da aplicação.");
+            if (version == 1)
+            {
+                ValidarBanco(connection);
+                _logger.Information("Banco SQLite validado com sucesso");
+                return;
+            }
+
+            using (var check = connection.CreateCommand())
+            {
+                check.CommandText = "SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%';";
+                if ((long)check.ExecuteScalar()! != 0)
+                    throw new InvalidOperationException("Banco sem versão com tabelas existentes; migração automática recusada.");
+            }
+
+            _logger.Information("Aplicando migration inicial do SQLite");
+            AplicarMigrationInicial(connection);
             ValidarBanco(connection);
-            return;
+            _logger.Information("Migration inicial do SQLite aplicada com sucesso");
         }
-
-        using (var check = connection.CreateCommand())
+        catch (Exception exception)
         {
-            check.CommandText = "SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%';";
-            if ((long)check.ExecuteScalar()! != 0)
-                throw new InvalidOperationException("Banco sem versão com tabelas existentes; migração automática recusada.");
+            _logger.Error(exception, "Falha ao inicializar ou validar o banco SQLite");
+            throw;
         }
+    }
 
+    public string CriarBackupAntesDeMigrar()
+    {
+        try
+        {
+            Directory.CreateDirectory(_diretorioBackups);
+            var name = $"mandioca-{DateTimeOffset.UtcNow.ToString("yyyyMMdd-HHmmss-fffffff", CultureInfo.InvariantCulture)}.sqlite";
+            var path = Path.Combine(_diretorioBackups, name);
+            using var source = _banco.AbrirConexao();
+            using var target = new BancoSqlite(path).AbrirConexao();
+            source.BackupDatabase(target);
+            ValidarBanco(target);
+            _logger.Information("Backup SQLite criado e validado antes da migration");
+            return path;
+        }
+        catch (Exception exception)
+        {
+            _logger.Error(exception, "Falha ao criar ou validar backup SQLite");
+            throw;
+        }
+    }
+
+    private static void AplicarMigrationInicial(SqliteConnection connection)
+    {
         // V1 is only created on an empty database. Future migrations must back up
         // the existing database before changing it.
         using var transaction = connection.BeginTransaction();
@@ -55,19 +106,6 @@ public sealed class InicializadorBanco(BancoSqlite banco, string diretorioBackup
             transaction.Rollback();
             throw;
         }
-        ValidarBanco(connection);
-    }
-
-    public string CriarBackupAntesDeMigrar()
-    {
-        Directory.CreateDirectory(diretorioBackups);
-        var name = $"mandioca-{DateTimeOffset.UtcNow.ToString("yyyyMMdd-HHmmss-fffffff", CultureInfo.InvariantCulture)}.sqlite";
-        var path = Path.Combine(diretorioBackups, name);
-        using var source = banco.AbrirConexao();
-        using var target = new BancoSqlite(path).AbrirConexao();
-        source.BackupDatabase(target);
-        ValidarBanco(target);
-        return path;
     }
 
     private static long Versao(SqliteConnection connection)

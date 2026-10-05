@@ -1,11 +1,34 @@
 using MandiocaCaipira.App.Data;
+using MandiocaCaipira.App.Diagnostics;
 using MandiocaCaipira.App.Services;
 using Microsoft.Data.Sqlite;
+using Serilog;
 
 namespace MandiocaCaipira.Tests;
 
 public sealed class FundacaoTests
 {
+    [Fact]
+    public void LoggingCriaDiretorioEGravaEntrada()
+    {
+        var directory = Path.Combine(Path.GetTempPath(), "MandiocaCaipiraTests", Guid.NewGuid().ToString("N"), "logs");
+        try
+        {
+            var logger = ConfiguracaoLogging.Criar(directory);
+            logger.Information("Aplicação de teste iniciada");
+            (logger as IDisposable)?.Dispose();
+
+            var file = Assert.Single(Directory.GetFiles(directory, "mandioca-*.log"));
+            Assert.Contains("Aplicação de teste iniciada", File.ReadAllText(file));
+        }
+        finally
+        {
+            var root = Directory.GetParent(directory)!.FullName;
+            if (Directory.Exists(root))
+                Directory.Delete(root, recursive: true);
+        }
+    }
+
     [Theory]
     [InlineData(500, 101, 51)]
     [InlineData(1500, 101, 152)]

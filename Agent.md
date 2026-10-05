@@ -65,6 +65,10 @@ Aplicação desktop Windows.
 - C#
 - WinForms
 - SQLite
+- Microsoft.Data.Sqlite
+- Serilog e Serilog.Sinks.File para diagnóstico local
+- FuzzySharp para futura sugestão assistida de possíveis duplicatas
+- ClosedXML para futura integração com planilhas
 - funcionamento offline
 
 SQLite é a fonte oficial dos dados.

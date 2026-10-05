@@ -5,3 +5,12 @@ A aplicação WinForms usa SQLite local. `Data/InicializadorBanco.cs` instala o 
 `Data/FormatoTemporal.cs` normaliza datas de operação como `YYYY-MM-DD` e instantes técnicos em UTC ISO 8601. O schema valida essas representações. Clientes são inativados logicamente pelo campo `Ativo`; o histórico é preservado e novas vendas ou pagamentos para clientes inativos são recusados.
 
 A etapa atual contém somente o formulário vazio gerado pelo template. Os fluxos de venda, pagamento e relatórios serão entregas posteriores.
+
+## Stack e bibliotecas
+
+- **Microsoft.Data.Sqlite:** acesso e persistência no banco SQLite oficial da aplicação.
+- **Serilog + Serilog.Sinks.File:** logging de diagnóstico local em `%LOCALAPPDATA%/MandiocaCaipira/Logs`. Os arquivos rodam diariamente, também rodam ao atingir 10 MiB e são limitados aos 14 arquivos mais recentes.
+- **FuzzySharp:** dependência aprovada para futura sugestão assistida de possíveis clientes duplicados. Similaridade textual nunca confirma ou altera clientes automaticamente.
+- **ClosedXML:** dependência aprovada para futura importação e exportação de planilhas. Nenhum fluxo de planilha foi implementado nesta etapa.
+
+O logging registra inicialização, encerramento, falhas inesperadas e eventos relevantes do bootstrap e das migrations do SQLite. Não deve receber conteúdo integral de registros nem dados pessoais desnecessários.
