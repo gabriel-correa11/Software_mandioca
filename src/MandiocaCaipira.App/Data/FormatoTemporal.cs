@@ -28,4 +28,14 @@ public static class FormatoTemporal
             CultureInfo.InvariantCulture,
             DateTimeStyles.AssumeUniversal | DateTimeStyles.AdjustToUniversal,
             out _);
+
+    public static DateOnly LerDataOperacao(string valor) =>
+        DateOnly.ParseExact(valor, FormatoData, CultureInfo.InvariantCulture);
+
+    public static DateTimeOffset LerInstanteUtc(string valor) =>
+        DateTimeOffset.ParseExact(
+            valor,
+            FormatoInstanteUtc,
+            CultureInfo.InvariantCulture,
+            DateTimeStyles.AssumeUniversal | DateTimeStyles.AdjustToUniversal);
 }
