@@ -19,7 +19,8 @@ static class Program
         {
             Log.Information("Aplicação iniciada");
             var banco = new BancoSqlite(CaminhosDados.Banco);
-            new InicializadorBanco(banco, CaminhosDados.Backups, Log.Logger).Inicializar();
+            var inicializador = new InicializadorBanco(banco, CaminhosDados.Backups, Log.Logger);
+            inicializador.Inicializar();
             var clientesRepo = new ClienteRepository(banco);
             var vendasRepo = new VendaRepository(banco);
             var pagamentosRepo = new PagamentoRepository(banco);
@@ -27,7 +28,9 @@ static class Program
                 new ClienteService(clientesRepo),
                 new VendaService(banco, vendasRepo, pagamentosRepo),
                 new PagamentoService(banco, pagamentosRepo, vendasRepo),
-                new ResumoRepository(banco)));
+                new ResumoRepository(banco),
+                new ReciboService(vendasRepo, pagamentosRepo, CaminhosDados.Recibos),
+                new BackupService(inicializador)));
         }
         catch (Exception ex)
         {
