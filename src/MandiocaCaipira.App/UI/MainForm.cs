@@ -109,13 +109,16 @@ public sealed class MainForm : KryptonForm
     }
     private TabPage PaymentPage()
     {
-        var page = Ui.Page("Registrar pagamento"); var top = Ui.Section("Recebimento", "Escolha o cliente, informe o valor e confira a distribuição.", 205);
+        var page = Ui.Page("Registrar pagamento"); var top = Ui.Section("Recebimento", "Escolha o cliente, informe o valor e confira a distribuição.", 225);
         var composition = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 2, RowCount = 1, Padding = new Padding(4, 0, 4, 0) };
         composition.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 64)); composition.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 36));
         var inputs = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 2, RowCount = 2, Margin = new Padding(0, 0, 20, 0) };
         inputs.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50)); inputs.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50)); inputs.RowStyles.Add(new RowStyle(SizeType.Percent, 50)); inputs.RowStyles.Add(new RowStyle(SizeType.Percent, 50));
         inputs.Controls.Add(Ui.Labeled("Cliente", _paymentClient), 0, 0); inputs.SetColumnSpan(inputs.GetControlFromPosition(0, 0)!, 2); inputs.Controls.Add(Ui.Labeled("Valor recebido", _received), 0, 1); inputs.Controls.Add(Ui.Labeled("Data do recebimento", _paymentDate), 1, 1);
-        var metrics = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 1, RowCount = 2, BackColor = Ui.LightGreen, Padding = new Padding(12, 6, 8, 4) }; metrics.RowStyles.Add(new RowStyle(SizeType.Percent, 50)); metrics.RowStyles.Add(new RowStyle(SizeType.Percent, 50)); metrics.Controls.Add(Ui.InlineMetric("Dívida atual", _debt), 0, 0); metrics.Controls.Add(Ui.InlineMetric("Crédito restante", _credit), 0, 1);
+        var metrics = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 2, RowCount = 2, BackColor = Ui.LightGreen, Padding = new Padding(14, 12, 10, 8) };
+        metrics.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50)); metrics.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50)); metrics.RowStyles.Add(new RowStyle(SizeType.Absolute, 24)); metrics.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+        metrics.Controls.Add(new Label { Text = "Dívida atual", Dock = DockStyle.Fill, ForeColor = Ui.Muted, Font = Ui.Font }, 0, 0); metrics.Controls.Add(new Label { Text = "Crédito restante", Dock = DockStyle.Fill, ForeColor = Ui.Muted, Font = Ui.Font }, 1, 0);
+        _debt.Dock = DockStyle.Fill; _credit.Dock = DockStyle.Fill; metrics.Controls.Add(_debt, 0, 1); metrics.Controls.Add(_credit, 1, 1);
         composition.Controls.Add(inputs, 0, 0); composition.Controls.Add(metrics, 1, 0); top.Controls.Add(composition);
         var distribute = Ui.SecondaryButton("Distribuir automaticamente", Distribute); var confirm = Ui.PrimaryButton("Confirmar pagamento", RegisterPayment); var actions = Ui.Toolbar(); actions.Controls.AddRange([distribute, confirm]);
         var open = Ui.Section("Vendas em aberto", "Use a última coluna para definir quanto será destinado a cada venda.", 400); open.Dock = DockStyle.Fill; open.Controls.Add(_distribution);

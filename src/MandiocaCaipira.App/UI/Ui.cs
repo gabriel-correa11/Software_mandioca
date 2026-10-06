@@ -50,10 +50,6 @@ internal static class Ui
         var p = new Panel { Width = 190, Height = 82, BackColor = SystemColors.Window, Margin = new Padding(0, 0, 8, 8), Padding = new Padding(10, 8, 8, 6), BorderStyle = BorderStyle.FixedSingle };
         var l = new Label { Text = label, Dock = DockStyle.Top, Height = 23, ForeColor = Muted, Font = Font }; value.Dock = DockStyle.Fill; p.Controls.Add(value); p.Controls.Add(l); return p;
     }
-    public static Panel InlineMetric(string label, Control value)
-    {
-        var p = new Panel { Dock = DockStyle.Fill, Margin = new Padding(0, 0, 8, 2) }; var l = new Label { Text = label, Dock = DockStyle.Top, Height = 20, ForeColor = Muted }; value.Dock = DockStyle.Fill; p.Controls.Add(value); p.Controls.Add(l); return p;
-    }
     public static Panel Section(string title, string subtitle, int height = 390)
     {
         var p = new Panel { Dock = DockStyle.Top, Height = height, BackColor = SystemColors.Control, Padding = new Padding(14, 60, 14, 12), BorderStyle = BorderStyle.FixedSingle };
