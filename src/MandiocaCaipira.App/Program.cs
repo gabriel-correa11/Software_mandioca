@@ -9,7 +9,7 @@ namespace MandiocaCaipira.App;
 static class Program
 {
     [STAThread]
-    static void Main()
+    static void Main(string[] args)
     {
         ApplicationConfiguration.Initialize();
         ConfigurarLogging();
@@ -24,13 +24,15 @@ static class Program
             var clientesRepo = new ClienteRepository(banco);
             var vendasRepo = new VendaRepository(banco);
             var pagamentosRepo = new PagamentoRepository(banco);
-            Application.Run(new MainForm(
-                new ClienteService(clientesRepo),
-                new VendaService(banco, vendasRepo, pagamentosRepo),
-                new PagamentoService(banco, pagamentosRepo, vendasRepo),
-                new ResumoRepository(banco),
-                new ReciboService(vendasRepo, pagamentosRepo, CaminhosDados.Recibos),
-                new BackupService(inicializador)));
+            var clientes = new ClienteService(clientesRepo);
+            var vendas = new VendaService(banco, vendasRepo, pagamentosRepo);
+            var pagamentos = new PagamentoService(banco, pagamentosRepo, vendasRepo);
+            var recibos = new ReciboService(vendasRepo, pagamentosRepo, CaminhosDados.Recibos);
+            if (args.Contains("--ui-spike-historico", StringComparer.OrdinalIgnoreCase))
+                Application.Run(new HistoricoKryptonForm(clientes, vendas, pagamentos, recibos, _ => { }));
+            else
+                Application.Run(new MainForm(clientes, vendas, pagamentos,
+                    new ResumoRepository(banco), recibos, new BackupService(inicializador)));
         }
         catch (Exception ex)
         {

@@ -26,6 +26,7 @@ public sealed class MainForm : Form
     private readonly TextBox _search = new() { Width = 280, PlaceholderText = "Pesquisar por nome" };
     private readonly CheckBox _inactive = new() { Text = "Incluir clientes inativos", AutoSize = true, Padding = new Padding(0, 7, 0, 0) };
     private BindingList<DistributionRow> _lines = [];
+    private HistoricoKryptonForm? _classicHistory;
 
     public MainForm(ClienteService clientes, VendaService vendas, PagamentoService pagamentos, ResumoRepository resumo, ReciboService recibos, BackupService backup)
     {
@@ -84,7 +85,7 @@ public sealed class MainForm : Form
     {
         var page = Ui.Page("Histórico"); _from.Value = DateTime.Today.AddMonths(-1); var filters = Ui.Toolbar(); filters.Controls.AddRange([Ui.Caption("Cliente"), _historyClient, Ui.Caption("De"), _from, Ui.Caption("Até"), _to, Ui.PrimaryButton("Aplicar filtros", RefreshHistory)]);
         var split = new SplitContainer { Dock = DockStyle.Fill, Orientation = Orientation.Horizontal, SplitterDistance = 285, BackColor = Ui.Border }; split.Panel1.Padding = new Padding(0, 36, 0, 0); split.Panel2.Padding = new Padding(0, 36, 0, 0);
-        split.Panel1.Controls.Add(_sales); split.Panel1.Controls.Add(Ui.SectionHeader("Vendas", Ui.DangerButton("Cancelar venda", CancelSale), Ui.SecondaryButton("Gerar comprovante", GenerateSaleReceipt)));
+        split.Panel1.Controls.Add(_sales); split.Panel1.Controls.Add(Ui.SectionHeader("Vendas", Ui.DangerButton("Cancelar venda", CancelSale), Ui.SecondaryButton("Gerar comprovante", GenerateSaleReceipt), Ui.SecondaryButton("Comparar proposta clássica", OpenClassicHistory)));
         split.Panel2.Controls.Add(_payments); split.Panel2.Controls.Add(Ui.SectionHeader("Pagamentos", Ui.DangerButton("Estornar pagamento", ReversePayment), Ui.SecondaryButton("Gerar recibo", GeneratePaymentReceipt)));
         page.Controls.Add(split); page.Controls.Add(filters); return page;
     }
@@ -141,6 +142,13 @@ public sealed class MainForm : Form
     private void ReversePayment() { if (Selected<PaymentRow>(_payments) is not { } row) { ShowSelection("Selecione um pagamento."); return; } var reason = TextPrompt.Show(this, "Estornar pagamento", "Motivo do estorno", "As vendas afetadas voltarão a apresentar saldo."); if (reason is null || MessageBox.Show(this, $"Estornar o pagamento de {row.Value} recebido de {row.Client}?\n\nOs saldos afetados serão reabertos.", "Confirmar estorno", MessageBoxButtons.YesNo, MessageBoxIcon.Warning) != DialogResult.Yes) return; Run(() => { _pagamentos.Estornar(row.Id, reason); RefreshAll(); }, "Pagamento estornado."); }
     private void GenerateSaleReceipt() { if (Selected<SaleRow>(_sales) is { } row) GenerateAndOpen(() => _recibos.GerarVenda(row.Id)); else ShowSelection("Selecione uma venda."); }
     private void GeneratePaymentReceipt() { if (Selected<PaymentRow>(_payments) is { } row) GenerateAndOpen(() => _recibos.GerarPagamento(row.Id)); else ShowSelection("Selecione um pagamento."); }
+    private void OpenClassicHistory()
+    {
+        if (_classicHistory is { IsDisposed: false }) { _classicHistory.Activate(); return; }
+        _classicHistory = new HistoricoKryptonForm(_clientes, _vendas, _pagamentos, _recibos, page => { ShowPage(page); Activate(); });
+        _classicHistory.FormClosed += (_, _) => { _classicHistory = null; RefreshAll(); };
+        _classicHistory.Show(this);
+    }
     private void GenerateAndOpen(Func<string> generate) => Run(() => Process.Start(new ProcessStartInfo(generate()) { UseShellExecute = true }), "Comprovante gerado e aberto.", false);
     private void CreateBackup() => Run(() => { var path = _backup.Criar(); MessageBox.Show(this, $"Backup criado com sucesso em:\n{path}", "Backup concluído", MessageBoxButtons.OK, MessageBoxIcon.Information); }, "Backup concluído.", false);
 
