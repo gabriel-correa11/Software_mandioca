@@ -1,5 +1,7 @@
 using MandiocaCaipira.App.Data;
 using MandiocaCaipira.App.Diagnostics;
+using MandiocaCaipira.App.Repositories;
+using MandiocaCaipira.App.Services;
 using Serilog;
 
 namespace MandiocaCaipira.App;
@@ -18,7 +20,14 @@ static class Program
             Log.Information("Aplicação iniciada");
             var banco = new BancoSqlite(CaminhosDados.Banco);
             new InicializadorBanco(banco, CaminhosDados.Backups, Log.Logger).Inicializar();
-            Application.Run(new Form1());
+            var clientesRepo = new ClienteRepository(banco);
+            var vendasRepo = new VendaRepository(banco);
+            var pagamentosRepo = new PagamentoRepository(banco);
+            Application.Run(new MainForm(
+                new ClienteService(clientesRepo),
+                new VendaService(banco, vendasRepo, pagamentosRepo),
+                new PagamentoService(banco, pagamentosRepo, vendasRepo),
+                new ResumoRepository(banco)));
         }
         catch (Exception ex)
         {
