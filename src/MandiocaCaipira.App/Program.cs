@@ -29,11 +29,8 @@ static class Program
             var vendas = new VendaService(banco, vendasRepo, pagamentosRepo);
             var pagamentos = new PagamentoService(banco, pagamentosRepo, vendasRepo);
             var recibos = new ReciboService(vendasRepo, pagamentosRepo, CaminhosDados.Recibos);
-            if (args.Contains("--ui-spike-historico", StringComparer.OrdinalIgnoreCase))
-                Application.Run(new HistoricoKryptonForm(clientes, vendas, pagamentos, recibos, _ => { }));
-            else
-                Application.Run(new MainForm(clientes, vendas, pagamentos,
-                    new ResumoRepository(banco), recibos, new BackupService(inicializador), importacaoClientes));
+            Application.Run(new MainForm(clientes, vendas, pagamentos,
+                new ResumoRepository(banco), recibos, new BackupService(inicializador), importacaoClientes));
         }
         catch (Exception ex)
         {

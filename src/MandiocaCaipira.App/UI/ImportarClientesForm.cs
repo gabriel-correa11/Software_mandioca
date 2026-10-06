@@ -28,11 +28,13 @@ public sealed class ImportarClientesForm : KryptonForm
         MinimumSize = new Size(980, 600);
         Size = new Size(1180, 700);
         AutoScaleMode = AutoScaleMode.Dpi;
-        Font = new Font("Segoe UI", 9F);
+        Font = Ui.Font;
         PaletteMode = PaletteMode.ProfessionalSystem;
         KeyPreview = true;
         AcceptButton = _confirm;
         CancelButton = _cancel;
+        Ui.StyleButton(_confirm, primary: true);
+        Ui.StyleButton(_cancel);
         Controls.Add(BuildLayout());
         ConfigureGrid();
         _confirm.Click += (_, _) => ConfirmImport();
@@ -72,7 +74,7 @@ public sealed class ImportarClientesForm : KryptonForm
         {
             Text = "Revisar clientes encontrados",
             Dock = DockStyle.Top,
-            StateCommon = { ShortText = { Font = new Font("Segoe UI Semibold", 14F), Color1 = Color.FromArgb(43, 66, 50) } }
+            StateCommon = { ShortText = { Font = Ui.TitleFont, Color1 = Color.FromArgb(43, 66, 50) } }
         });
         heading.Controls.Add(new KryptonLabel
         {
@@ -104,6 +106,11 @@ public sealed class ImportarClientesForm : KryptonForm
         _grid.SelectionMode = DataGridViewSelectionMode.FullRowSelect;
         _grid.RowHeadersVisible = false;
         _grid.RowTemplate.Height = 27;
+        _grid.ColumnHeadersHeight = 31;
+        _grid.EnableHeadersVisualStyles = false;
+        _grid.ColumnHeadersDefaultCellStyle = new DataGridViewCellStyle { BackColor = Color.FromArgb(226, 230, 227), ForeColor = Ui.Text, Font = Ui.SectionFont, SelectionBackColor = Color.FromArgb(226, 230, 227) };
+        _grid.DefaultCellStyle = new DataGridViewCellStyle { BackColor = SystemColors.Window, ForeColor = Ui.Text, Font = Ui.GridFont, SelectionBackColor = Color.FromArgb(73, 116, 86), SelectionForeColor = Color.White };
+        _grid.AlternatingRowsDefaultCellStyle = new DataGridViewCellStyle { BackColor = Color.FromArgb(249, 250, 249) };
         _grid.AutoSizeRowsMode = DataGridViewAutoSizeRowsMode.None;
         _grid.EditMode = DataGridViewEditMode.EditOnEnter;
         _grid.Columns.Add(new DataGridViewTextBoxColumn { DataPropertyName = nameof(CandidatoImportacaoCliente.NomeEncontrado), HeaderText = "Encontrado no arquivo", ReadOnly = true, FillWeight = 25 });

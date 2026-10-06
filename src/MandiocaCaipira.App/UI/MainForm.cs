@@ -1,6 +1,7 @@
 using System.ComponentModel;
 using System.Diagnostics;
 using System.Globalization;
+using Krypton.Toolkit;
 using MandiocaCaipira.App.Data;
 using MandiocaCaipira.App.Models;
 using MandiocaCaipira.App.Repositories;
@@ -9,83 +10,121 @@ using Serilog;
 
 namespace MandiocaCaipira.App;
 
-public sealed class MainForm : Form
+public sealed class MainForm : KryptonForm
 {
     private static readonly CultureInfo PtBr = CultureInfo.GetCultureInfo("pt-BR");
     private readonly ClienteService _clientes; private readonly VendaService _vendas; private readonly PagamentoService _pagamentos;
     private readonly ResumoRepository _resumo; private readonly ReciboService _recibos; private readonly BackupService _backup; private readonly ImportacaoClientesService _importacaoClientes;
     private readonly TabControl _pages = new() { Dock = DockStyle.Fill, Appearance = TabAppearance.FlatButtons, SizeMode = TabSizeMode.Fixed, ItemSize = new Size(0, 1) };
-    private readonly Label _title = new() { AutoSize = true, Font = new Font("Segoe UI Semibold", 17), ForeColor = Ui.Text };
-    private readonly ToolStripStatusLabel _status = new("Pronto"); private readonly Dictionary<int, Button> _nav = [];
+    private readonly Label _title = new() { AutoSize = true, Font = Ui.TitleFont, ForeColor = Ui.Text };
+    private readonly ToolStripStatusLabel _status = new("Pronto"); private readonly Dictionary<int, ToolStripButton> _nav = [];
     private readonly DataGridView _clients = Ui.Grid(), _pending = Ui.Grid(), _sales = Ui.Grid(), _payments = Ui.Grid(), _distribution = Ui.Grid(false);
     private readonly ComboBox _saleClient = Ui.Combo(), _paymentClient = Ui.Combo(), _historyClient = Ui.Combo();
     private readonly NumericUpDown _kg = Ui.Number(3), _price = Ui.Number(2), _initial = Ui.Number(2), _received = Ui.Number(2);
     private readonly DateTimePicker _saleDate = Ui.Date(), _paymentDate = Ui.Date(), _from = Ui.Date(), _to = Ui.Date();
-    private readonly Label _total = Ui.Value("R$ 0,00", 22), _credit = Ui.Value("R$ 0,00", 15), _debt = Ui.Value("R$ 0,00", 15);
+    private readonly Label _total = Ui.Value("R$ 0,00", 20), _credit = Ui.Value("R$ 0,00", 14), _debt = Ui.Value("R$ 0,00", 14);
     private readonly Label _daySales = Ui.Value("0"), _dayKg = Ui.Value("0,000 kg"), _dayValue = Ui.Value("R$ 0,00"), _dayReceipts = Ui.Value("R$ 0,00"), _openBalance = Ui.Value("R$ 0,00");
-    private readonly TextBox _search = new() { Width = 280, PlaceholderText = "Pesquisar por nome" };
-    private readonly CheckBox _inactive = new() { Text = "Incluir clientes inativos", AutoSize = true, Padding = new Padding(0, 7, 0, 0) };
+    private readonly TextBox _search = new() { Width = 260, Height = 28, PlaceholderText = "Pesquisar por nome" };
+    private readonly CheckBox _inactive = new() { Text = "Incluir clientes inativos", AutoSize = true, Padding = new Padding(2, 6, 8, 0) };
     private BindingList<DistributionRow> _lines = [];
-    private HistoricoKryptonForm? _classicHistory;
 
     public MainForm(ClienteService clientes, VendaService vendas, PagamentoService pagamentos, ResumoRepository resumo, ReciboService recibos, BackupService backup, ImportacaoClientesService importacaoClientes)
     {
         _clientes = clientes; _vendas = vendas; _pagamentos = pagamentos; _resumo = resumo; _recibos = recibos; _backup = backup; _importacaoClientes = importacaoClientes;
-        Text = "Mandioca Caipira"; MinimumSize = new Size(1120, 720); Size = new Size(1360, 820); StartPosition = FormStartPosition.CenterScreen;
-        Font = Ui.Font; BackColor = Ui.Background; AutoScaleMode = AutoScaleMode.Dpi; Controls.Add(BuildShell()); ConfigureGrids(); WireEvents(); ShowPage(0); RefreshAll();
+        Text = "Mandioca Caipira"; MinimumSize = new Size(1024, 680); Size = new Size(1280, 760); StartPosition = FormStartPosition.CenterScreen;
+        Font = Ui.Font; BackColor = SystemColors.Control; AutoScaleMode = AutoScaleMode.Dpi; PaletteMode = PaletteMode.ProfessionalSystem; KeyPreview = true;
+        Controls.Add(BuildShell()); ConfigureGrids(); WireEvents(); ShowPage(0); RefreshAll(); Shown += (_, _) => FocusCurrentPage();
     }
 
     private Control BuildShell()
     {
         _pages.TabPages.AddRange([HomePage(), ClientsPage(), SalePage(), PaymentPage(), PendingPage(), HistoryPage()]);
-        var header = new Panel { Dock = DockStyle.Top, Height = 66, BackColor = Color.White, Padding = new Padding(24, 18, 20, 8) }; header.Controls.Add(_title);
-        var status = new StatusStrip { SizingGrip = false, BackColor = Color.White }; status.Items.Add(_status);
-        var content = new Panel { Dock = DockStyle.Fill, Padding = new Padding(20), BackColor = Ui.Background }; content.Controls.Add(_pages); content.Controls.Add(header); content.Controls.Add(status);
-        var shell = new Panel { Dock = DockStyle.Fill }; shell.Controls.Add(content); shell.Controls.Add(BuildNavigation()); return shell;
+        var header = new KryptonPanel { Dock = DockStyle.Top, Height = 52, Padding = new Padding(12, 12, 10, 5) }; header.StateCommon.Color1 = SystemColors.Control; header.Controls.Add(_title);
+        var status = new StatusStrip { SizingGrip = false }; status.Items.Add(_status);
+        var content = new KryptonPanel { Dock = DockStyle.Fill, Padding = new Padding(9) }; content.StateCommon.Color1 = SystemColors.Control; content.Controls.Add(_pages); content.Controls.Add(header); content.Controls.Add(BuildToolStrip()); content.Controls.Add(BuildMenu()); content.Controls.Add(status);
+        return content;
     }
 
-    private Control BuildNavigation()
+    private MenuStrip BuildMenu()
     {
-        var panel = new Panel { Dock = DockStyle.Left, Width = 205, BackColor = Ui.Nav, Padding = new Padding(12, 18, 12, 12) };
-        var brand = new Label { Text = "MANDIOCA\nCAIPIRA", ForeColor = Color.White, Font = new Font("Segoe UI Semibold", 15), Height = 70, Dock = DockStyle.Top };
-        var menu = new FlowLayoutPanel { Dock = DockStyle.Top, Height = 390, FlowDirection = FlowDirection.TopDown, WrapContents = false };
+        var menu = new MenuStrip { Dock = DockStyle.Top };
+        var arquivo = new ToolStripMenuItem("&Arquivo");
+        arquivo.DropDownItems.Add("Fazer &backup agora", null, (_, _) => CreateBackup());
+        arquivo.DropDownItems.Add("Abrir pasta de backups", null, (_, _) => OpenFolder(CaminhosDados.Backups));
+        arquivo.DropDownItems.Add("Abrir pasta de comprovantes", null, (_, _) => OpenFolder(CaminhosDados.Recibos));
+        arquivo.DropDownItems.Add(new ToolStripSeparator());
+        arquivo.DropDownItems.Add("&Sair", null, (_, _) => Close());
+        var cadastros = new ToolStripMenuItem("&Cadastros"); cadastros.DropDownItems.Add("&Clientes", null, (_, _) => ShowPage(1));
+        var movimento = new ToolStripMenuItem("&Movimentação");
+        movimento.DropDownItems.Add("&Nova venda", null, (_, _) => ShowPage(2));
+        movimento.DropDownItems.Add("&Registrar pagamento", null, (_, _) => ShowPage(3));
+        movimento.DropDownItems.Add("&Pendências", null, (_, _) => ShowPage(4));
+        var consultas = new ToolStripMenuItem("C&onsultas"); consultas.DropDownItems.Add("&Histórico", null, (_, _) => ShowPage(5));
+        menu.Items.AddRange([arquivo, cadastros, movimento, consultas]); MainMenuStrip = menu; return menu;
+    }
+
+    private ToolStrip BuildToolStrip()
+    {
+        var strip = new ToolStrip { Dock = DockStyle.Top, GripStyle = ToolStripGripStyle.Hidden, Padding = new Padding(5, 3, 5, 3), ImageScalingSize = new Size(20, 20) };
         string[] labels = ["Início", "Clientes", "Nova venda", "Registrar pagamento", "Pendências", "Histórico"];
-        for (var i = 0; i < labels.Length; i++) { var index = i; var b = Ui.NavButton(labels[i], () => ShowPage(index)); _nav[index] = b; menu.Controls.Add(b); }
-        var backup = Ui.NavButton("Fazer backup agora", CreateBackup); var folder = Ui.NavButton("Abrir pasta de backups", () => OpenFolder(CaminhosDados.Backups)); var receipts = Ui.NavButton("Abrir comprovantes", () => OpenFolder(CaminhosDados.Recibos));
-        panel.Controls.Add(folder); folder.Dock = DockStyle.Bottom; panel.Controls.Add(backup); backup.Dock = DockStyle.Bottom; panel.Controls.Add(receipts); receipts.Dock = DockStyle.Bottom; panel.Controls.Add(menu); panel.Controls.Add(brand); return panel;
+        for (var i = 0; i < labels.Length; i++) { var index = i; var button = new ToolStripButton(labels[i]) { DisplayStyle = ToolStripItemDisplayStyle.Text, AutoSize = true, Padding = new Padding(7, 2, 7, 2), CheckOnClick = false }; button.Click += (_, _) => ShowPage(index); _nav[index] = button; strip.Items.Add(button); }
+        strip.Items.Add(new ToolStripSeparator()); var refresh = new ToolStripButton("Atualizar") { DisplayStyle = ToolStripItemDisplayStyle.Text, Padding = new Padding(7, 2, 7, 2) }; refresh.Click += (_, _) => RefreshAll(); strip.Items.Add(refresh); return strip;
     }
 
     private TabPage HomePage()
     {
-        var page = Ui.Page("Início"); var summary = new TableLayoutPanel { Dock = DockStyle.Top, Height = 118, ColumnCount = 5, Padding = new Padding(0, 5, 0, 10) };
-        for (var i = 0; i < 5; i++) summary.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 20));
-        summary.Controls.Add(Ui.Summary("Vendas de hoje", _daySales), 0, 0); summary.Controls.Add(Ui.Summary("Quantidade vendida", _dayKg), 1, 0); summary.Controls.Add(Ui.Summary("Valor vendido", _dayValue), 2, 0); summary.Controls.Add(Ui.Summary("Recebimentos de hoje", _dayReceipts), 3, 0); summary.Controls.Add(Ui.Summary("Saldo em aberto", _openBalance), 4, 0);
-        var actions = Ui.Section("Acesso rápido", "Operações mais usadas no dia a dia", 150); var buttons = Ui.Toolbar(); buttons.Controls.AddRange([Ui.PrimaryButton("Registrar nova venda", () => ShowPage(2)), Ui.PrimaryButton("Registrar pagamento", () => ShowPage(3)), Ui.SecondaryButton("Ver pendências", () => ShowPage(4)), Ui.SecondaryButton("Atualizar resumo", RefreshSummary)]); actions.Controls.Add(buttons);
+        var page = Ui.Page("Início");
+        var summary = new FlowLayoutPanel { Dock = DockStyle.Top, Height = 188, Padding = new Padding(0, 6, 0, 8), WrapContents = true };
+        summary.Controls.AddRange([Ui.Summary("Vendas de hoje", _daySales), Ui.Summary("Quantidade vendida", _dayKg), Ui.Summary("Valor vendido", _dayValue), Ui.Summary("Recebimentos de hoje", _dayReceipts), Ui.Summary("Saldo em aberto", _openBalance)]);
+        var actions = Ui.Section("Acesso rápido", "Operações mais usadas no dia a dia", 126);
+        var buttons = Ui.Toolbar(48); buttons.Dock = DockStyle.Fill; buttons.Controls.AddRange([Ui.PrimaryButton("Registrar nova venda", () => ShowPage(2)), Ui.PrimaryButton("Registrar pagamento", () => ShowPage(3)), Ui.SecondaryButton("Ver pendências", () => ShowPage(4)), Ui.SecondaryButton("Atualizar resumo", RefreshSummary)]); actions.Controls.Add(buttons);
         page.Controls.Add(actions); page.Controls.Add(summary); return page;
     }
-    private TabPage ClientsPage() { var page = Ui.Page("Clientes"); var bar = Ui.Toolbar(); bar.Controls.AddRange([_search, _inactive, Ui.PrimaryButton("Cadastrar cliente", NewClient), Ui.SecondaryButton("Importar clientes...", ImportClients), Ui.SecondaryButton("Inativar ou reativar", ToggleClient)]); page.Controls.Add(_clients); page.Controls.Add(bar); return page; }
+    private TabPage ClientsPage()
+    {
+        var page = Ui.Page("Clientes"); var bar = Ui.Toolbar(52);
+        _search.Margin = new Padding(0, 2, 10, 0); _inactive.Margin = new Padding(0, 0, 12, 0);
+        bar.Controls.AddRange([_search, _inactive, Ui.PrimaryButton("Cadastrar cliente", NewClient), Ui.SecondaryButton("Importar clientes...", ImportClients), Ui.SecondaryButton("Inativar ou reativar", ToggleClient)]);
+        page.Controls.Add(_clients); page.Controls.Add(bar); return page;
+    }
     private TabPage SalePage()
     {
-        var page = Ui.Page("Nova venda"); var box = Ui.Section("Dados da venda", "Preencha os dados e confira o total antes de registrar.", 410); var form = Ui.Form(6);
-        Ui.Field(form, "Cliente", _saleClient, 0); Ui.Field(form, "Quantidade (kg)", _kg, 1); Ui.Field(form, "Preço por kg", _price, 2); Ui.Field(form, "Data da operação", _saleDate, 3); Ui.Field(form, "Pagamento inicial (opcional)", _initial, 4);
-        var totalPanel = new Panel { Dock = DockStyle.Fill, Height = 72, BackColor = Ui.LightGreen, Padding = new Padding(12, 7, 12, 6) }; _total.Dock = DockStyle.Fill; totalPanel.Controls.Add(_total); Ui.Field(form, "Total da venda", totalPanel, 5);
-        var submit = Ui.PrimaryButton("Registrar venda", RegisterSale); submit.Dock = DockStyle.Bottom; box.Controls.Add(submit); box.Controls.Add(form); page.Controls.Add(box); return page;
+        var page = Ui.Page("Nova venda");
+        var centered = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 3, RowCount = 2, Padding = new Padding(0, 8, 0, 0) };
+        centered.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50)); centered.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 850)); centered.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50)); centered.RowStyles.Add(new RowStyle(SizeType.Absolute, 350)); centered.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+        var box = Ui.Section("Dados da venda", "Preencha os dados e confira o total antes de registrar.", 350); box.Dock = DockStyle.Fill;
+        var form = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 2, RowCount = 3, Padding = new Padding(4, 0, 4, 0) };
+        form.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50)); form.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50));
+        form.RowStyles.Add(new RowStyle(SizeType.Absolute, 66)); form.RowStyles.Add(new RowStyle(SizeType.Absolute, 66)); form.RowStyles.Add(new RowStyle(SizeType.Absolute, 66));
+        form.Controls.Add(Ui.Labeled("Cliente", _saleClient), 0, 0); form.SetColumnSpan(form.GetControlFromPosition(0, 0)!, 2);
+        form.Controls.Add(Ui.Labeled("Quantidade (kg)", _kg), 0, 1); form.Controls.Add(Ui.Labeled("Preço por kg", _price), 1, 1);
+        form.Controls.Add(Ui.Labeled("Data da operação", _saleDate), 0, 2); form.Controls.Add(Ui.Labeled("Pagamento inicial (opcional)", _initial), 1, 2);
+        var footer = new TableLayoutPanel { Dock = DockStyle.Bottom, Height = 62, ColumnCount = 2, Padding = new Padding(4, 5, 4, 4) }; footer.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100)); footer.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
+        var totalPanel = new Panel { Dock = DockStyle.Fill, BackColor = Ui.LightGreen, Padding = new Padding(10, 2, 10, 2), Margin = new Padding(0, 0, 16, 0) }; _total.Dock = DockStyle.Fill; totalPanel.Controls.Add(_total); totalPanel.Controls.Add(new Label { Text = "Total da venda", Dock = DockStyle.Top, Height = 18, ForeColor = Ui.Muted, Font = Ui.Font });
+        var submit = Ui.PrimaryButton("Registrar venda", RegisterSale); submit.Anchor = AnchorStyles.Right | AnchorStyles.Bottom; footer.Controls.Add(totalPanel, 0, 0); footer.Controls.Add(submit, 1, 0);
+        box.Controls.Add(form); box.Controls.Add(footer); centered.Controls.Add(box, 1, 0); page.Controls.Add(centered);
+        _saleClient.TabIndex = 0; _kg.TabIndex = 1; _price.TabIndex = 2; _saleDate.TabIndex = 3; _initial.TabIndex = 4; submit.TabIndex = 5;
+        return page;
     }
     private TabPage PaymentPage()
     {
-        var page = Ui.Page("Registrar pagamento"); var top = Ui.Section("Recebimento", "Escolha o cliente, informe o valor e confira a distribuição.", 225); var form = Ui.Form(3);
-        Ui.Field(form, "Cliente", _paymentClient, 0); Ui.Field(form, "Valor recebido", _received, 1); Ui.Field(form, "Data do recebimento", _paymentDate, 2);
-        var metrics = new FlowLayoutPanel { Dock = DockStyle.Right, Width = 350, FlowDirection = FlowDirection.TopDown, Padding = new Padding(15, 4, 0, 0) }; metrics.Controls.Add(Ui.InlineMetric("Dívida atual", _debt)); metrics.Controls.Add(Ui.InlineMetric("Crédito restante", _credit)); top.Controls.Add(metrics); top.Controls.Add(form);
-        var actions = Ui.Toolbar(); actions.Controls.AddRange([Ui.SecondaryButton("Distribuir automaticamente", Distribute), Ui.PrimaryButton("Confirmar pagamento", RegisterPayment)]);
+        var page = Ui.Page("Registrar pagamento"); var top = Ui.Section("Recebimento", "Escolha o cliente, informe o valor e confira a distribuição.", 185);
+        var form = new TableLayoutPanel { Dock = DockStyle.Left, Width = 780, ColumnCount = 3, RowCount = 1, Padding = new Padding(4, 0, 0, 0) };
+        form.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 44)); form.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 28)); form.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 28));
+        form.Controls.Add(Ui.Labeled("Cliente", _paymentClient), 0, 0); form.Controls.Add(Ui.Labeled("Valor recebido", _received), 1, 0); form.Controls.Add(Ui.Labeled("Data do recebimento", _paymentDate), 2, 0);
+        var metrics = new FlowLayoutPanel { Dock = DockStyle.Bottom, Height = 66, FlowDirection = FlowDirection.LeftToRight, Padding = new Padding(4, 4, 0, 0), WrapContents = false }; metrics.Controls.Add(Ui.InlineMetric("Dívida atual", _debt)); metrics.Controls.Add(Ui.InlineMetric("Crédito restante", _credit)); top.Controls.Add(metrics); top.Controls.Add(form);
+        var distribute = Ui.SecondaryButton("Distribuir automaticamente", Distribute); var confirm = Ui.PrimaryButton("Confirmar pagamento", RegisterPayment); var actions = Ui.Toolbar(); actions.Controls.AddRange([distribute, confirm]);
         var open = Ui.Section("Vendas em aberto", "Use a última coluna para definir quanto será destinado a cada venda.", 400); open.Dock = DockStyle.Fill; open.Controls.Add(_distribution);
-        page.Controls.Add(open); page.Controls.Add(actions); page.Controls.Add(top); return page;
+        page.Controls.Add(open); page.Controls.Add(actions); page.Controls.Add(top);
+        _paymentClient.TabIndex = 0; _received.TabIndex = 1; _paymentDate.TabIndex = 2; distribute.TabIndex = 3; _distribution.TabIndex = 4; confirm.TabIndex = 5; return page;
     }
     private TabPage PendingPage() { var page = Ui.Page("Pendências"); var bar = Ui.Toolbar(); bar.Controls.AddRange([Ui.PrimaryButton("Registrar pagamento da seleção", PaySelected), Ui.SecondaryButton("Atualizar", RefreshPending)]); page.Controls.Add(_pending); page.Controls.Add(bar); return page; }
     private TabPage HistoryPage()
     {
         var page = Ui.Page("Histórico"); _from.Value = DateTime.Today.AddMonths(-1); var filters = Ui.Toolbar(); filters.Controls.AddRange([Ui.Caption("Cliente"), _historyClient, Ui.Caption("De"), _from, Ui.Caption("Até"), _to, Ui.PrimaryButton("Aplicar filtros", RefreshHistory)]);
         var split = new SplitContainer { Dock = DockStyle.Fill, Orientation = Orientation.Horizontal, SplitterDistance = 285, BackColor = Ui.Border }; split.Panel1.Padding = new Padding(0, 36, 0, 0); split.Panel2.Padding = new Padding(0, 36, 0, 0);
-        split.Panel1.Controls.Add(_sales); split.Panel1.Controls.Add(Ui.SectionHeader("Vendas", Ui.DangerButton("Cancelar venda", CancelSale), Ui.SecondaryButton("Gerar comprovante", GenerateSaleReceipt), Ui.SecondaryButton("Comparar proposta clássica", OpenClassicHistory)));
+        split.Panel1MinSize = 150; split.Panel2MinSize = 150; split.SizeChanged += (_, _) => { if (split.Height > 320) split.SplitterDistance = (split.Height - split.SplitterWidth) / 2; };
+        split.Panel1.Controls.Add(_sales); split.Panel1.Controls.Add(Ui.SectionHeader("Vendas", Ui.DangerButton("Cancelar venda", CancelSale), Ui.SecondaryButton("Gerar comprovante", GenerateSaleReceipt)));
         split.Panel2.Controls.Add(_payments); split.Panel2.Controls.Add(Ui.SectionHeader("Pagamentos", Ui.DangerButton("Estornar pagamento", ReversePayment), Ui.SecondaryButton("Gerar recibo", GeneratePaymentReceipt)));
         page.Controls.Add(split); page.Controls.Add(filters); return page;
     }
@@ -97,9 +136,15 @@ public sealed class MainForm : Form
         Ui.Columns(_sales, ("Client", "Cliente", 20, DataGridViewContentAlignment.MiddleLeft), ("Data", "Data", 9, DataGridViewContentAlignment.MiddleCenter), ("Quantidade", "Quantidade", 10, DataGridViewContentAlignment.MiddleRight), ("Total", "Total", 11, DataGridViewContentAlignment.MiddleRight), ("Recebido", "Recebido", 11, DataGridViewContentAlignment.MiddleRight), ("Saldo", "Saldo", 11, DataGridViewContentAlignment.MiddleRight), ("Situacao", "Situação", 11, DataGridViewContentAlignment.MiddleCenter), ("Motivo", "Observação", 17, DataGridViewContentAlignment.MiddleLeft));
         Ui.Columns(_payments, ("Client", "Cliente", 22, DataGridViewContentAlignment.MiddleLeft), ("Data", "Data", 10, DataGridViewContentAlignment.MiddleCenter), ("Value", "Valor recebido", 14, DataGridViewContentAlignment.MiddleRight), ("Aplicado", "Aplicado", 12, DataGridViewContentAlignment.MiddleRight), ("Credito", "Crédito", 11, DataGridViewContentAlignment.MiddleRight), ("Situacao", "Situação", 11, DataGridViewContentAlignment.MiddleCenter), ("Motivo", "Observação", 20, DataGridViewContentAlignment.MiddleLeft));
         Ui.Columns(_distribution, ("Data", "Data da venda", 15, DataGridViewContentAlignment.MiddleCenter), ("Total", "Valor original", 20, DataGridViewContentAlignment.MiddleRight), ("Recebido", "Já recebido", 20, DataGridViewContentAlignment.MiddleRight), ("Saldo", "Saldo atual", 20, DataGridViewContentAlignment.MiddleRight), ("Aplicar", "Aplicar neste pagamento", 25, DataGridViewContentAlignment.MiddleRight));
+        FixColumn(_clients, "Situacao", 105); FixColumn(_clients, "Cadastro", 155);
+        FixColumn(_pending, "Data", 105); FixColumn(_pending, "Total", 125); FixColumn(_pending, "Recebido", 125); FixColumn(_pending, "Saldo", 125);
+        FixColumn(_sales, "Data", 95); FixColumn(_sales, "Quantidade", 105); FixColumn(_sales, "Total", 105); FixColumn(_sales, "Recebido", 105); FixColumn(_sales, "Saldo", 105); FixColumn(_sales, "Situacao", 95);
+        FixColumn(_payments, "Data", 95); FixColumn(_payments, "Value", 120); FixColumn(_payments, "Aplicado", 110); FixColumn(_payments, "Credito", 105); FixColumn(_payments, "Situacao", 95);
+        FixColumn(_distribution, "Data", 110); FixColumn(_distribution, "Total", 125); FixColumn(_distribution, "Recebido", 125); FixColumn(_distribution, "Saldo", 125); FixColumn(_distribution, "Aplicar", 175);
         foreach (DataGridViewColumn column in _distribution.Columns) column.ReadOnly = true;
         if (_distribution.Columns["Aplicar"] is { } applyColumn) { applyColumn.ReadOnly = false; applyColumn.DefaultCellStyle.Format = "N2"; } _distribution.EditMode = DataGridViewEditMode.EditOnEnter;
     }
+    private static void FixColumn(DataGridView grid, string name, int width) { if (grid.Columns[name] is { } column) { column.AutoSizeMode = DataGridViewAutoSizeColumnMode.None; column.Width = width; } }
     private void WireEvents()
     {
         _search.TextChanged += (_, _) => RefreshClients(); _inactive.CheckedChanged += (_, _) => RefreshClients(); _kg.ValueChanged += (_, _) => CalculateTotal(); _price.ValueChanged += (_, _) => CalculateTotal();
@@ -107,7 +152,13 @@ public sealed class MainForm : Form
         _distribution.DataError += (_, args) => { args.ThrowException = false; ShowError("Informe um valor monetário válido na distribuição."); };
         FormClosing += (_, _) => Log.Information("Janela principal encerrada pelo usuário");
     }
-    private void ShowPage(int index) { _pages.SelectedIndex = index; _title.Text = _pages.TabPages[index].Text; foreach (var n in _nav) n.Value.BackColor = n.Key == index ? Ui.NavSelected : Ui.Nav; if (index == 0) RefreshSummary(); if (index == 3) LoadDistribution(); if (index == 4) RefreshPending(); if (index == 5) RefreshHistory(); }
+    private void ShowPage(int index)
+    {
+        _pages.SelectedIndex = index; _title.Text = _pages.TabPages[index].Text; foreach (var n in _nav) n.Value.Checked = n.Key == index;
+        if (index == 0) RefreshSummary(); if (index == 3) LoadDistribution(); if (index == 4) RefreshPending(); if (index == 5) RefreshHistory();
+        if (IsHandleCreated) BeginInvoke(FocusCurrentPage);
+    }
+    private void FocusCurrentPage() { if (_pages.SelectedIndex == 1) _search.Focus(); else if (_pages.SelectedIndex == 2) _saleClient.Focus(); else if (_pages.SelectedIndex == 3) _paymentClient.Focus(); else if (_pages.SelectedIndex == 4) _pending.Focus(); else if (_pages.SelectedIndex == 5) _historyClient.Focus(); }
     private void RefreshAll() { RefreshClients(); RefreshCombos(); RefreshPending(); RefreshHistory(); RefreshSummary(); CalculateTotal(); }
     private void RefreshClients() => _clients.DataSource = _clientes.Listar(_search.Text, _inactive.Checked).Select(c => new ClientRow(c.Id, c.Nome, c.Ativo ? "Ativo" : "Inativo", c.CriadoEm.LocalDateTime.ToString("g", PtBr), c.Ativo)).ToList();
     private void RefreshCombos() { Fill(_saleClient, _clientes.Listar(), false); Fill(_paymentClient, _clientes.Listar(), false); Fill(_historyClient, _clientes.Listar(incluirInativos: true), true); }
@@ -161,13 +212,6 @@ public sealed class MainForm : Form
     private void ReversePayment() { if (Selected<PaymentRow>(_payments) is not { } row) { ShowSelection("Selecione um pagamento."); return; } var reason = TextPrompt.Show(this, "Estornar pagamento", "Motivo do estorno", "As vendas afetadas voltarão a apresentar saldo."); if (reason is null || MessageBox.Show(this, $"Estornar o pagamento de {row.Value} recebido de {row.Client}?\n\nOs saldos afetados serão reabertos.", "Confirmar estorno", MessageBoxButtons.YesNo, MessageBoxIcon.Warning) != DialogResult.Yes) return; Run(() => { _pagamentos.Estornar(row.Id, reason); RefreshAll(); }, "Pagamento estornado."); }
     private void GenerateSaleReceipt() { if (Selected<SaleRow>(_sales) is { } row) GenerateAndOpen(() => _recibos.GerarVenda(row.Id)); else ShowSelection("Selecione uma venda."); }
     private void GeneratePaymentReceipt() { if (Selected<PaymentRow>(_payments) is { } row) GenerateAndOpen(() => _recibos.GerarPagamento(row.Id)); else ShowSelection("Selecione um pagamento."); }
-    private void OpenClassicHistory()
-    {
-        if (_classicHistory is { IsDisposed: false }) { _classicHistory.Activate(); return; }
-        _classicHistory = new HistoricoKryptonForm(_clientes, _vendas, _pagamentos, _recibos, page => { ShowPage(page); Activate(); });
-        _classicHistory.FormClosed += (_, _) => { _classicHistory = null; RefreshAll(); };
-        _classicHistory.Show(this);
-    }
     private void GenerateAndOpen(Func<string> generate) => Run(() => Process.Start(new ProcessStartInfo(generate()) { UseShellExecute = true }), "Comprovante gerado e aberto.", false);
     private void CreateBackup() => Run(() => { var path = _backup.Criar(); MessageBox.Show(this, $"Backup criado com sucesso em:\n{path}", "Backup concluído", MessageBoxButtons.OK, MessageBoxIcon.Information); }, "Backup concluído.", false);
 
