@@ -63,7 +63,11 @@ public sealed class InicializadorBanco
         }
     }
 
-    public string CriarBackupAntesDeMigrar()
+    public string CriarBackupAntesDeMigrar() => CriarBackup("Backup SQLite criado e validado antes da migration");
+
+    public string CriarBackupAgora() => CriarBackup("Backup SQLite manual criado e validado");
+
+    private string CriarBackup(string mensagemLog)
     {
         try
         {
@@ -74,7 +78,7 @@ public sealed class InicializadorBanco
             using var target = new BancoSqlite(path).AbrirConexao();
             source.BackupDatabase(target);
             ValidarBanco(target);
-            _logger.Information("Backup SQLite criado e validado antes da migration");
+            _logger.Information("{BackupResult}", mensagemLog);
             return path;
         }
         catch (Exception exception)

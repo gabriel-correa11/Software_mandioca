@@ -80,4 +80,8 @@ public sealed class VendaRepository(BancoSqlite banco)
         if (command.ExecuteNonQuery() != 1)
             throw new InvalidOperationException("Venda não encontrada ou já cancelada.");
     }
+
+    public VendaResumo Obter(long vendaId) =>
+        Listar().SingleOrDefault(v => v.Id == vendaId)
+        ?? throw new InvalidOperationException("Venda não encontrada.");
 }

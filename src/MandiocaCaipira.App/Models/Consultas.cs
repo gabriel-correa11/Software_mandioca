@@ -22,3 +22,9 @@ public sealed record AlocacaoSolicitada(long VendaId, long ValorCentavos);
 public sealed record ResumoDiario(
     int VendasRealizadas, long QuantidadeGramas, long ValorVendidoCentavos,
     long RecebimentosCentavos, int VendasCanceladas);
+
+public sealed record DestinacaoPagamento(
+    long VendaId, DateOnly DataVenda, long ValorVendaCentavos, long ValorAplicadoCentavos);
+
+public sealed record PagamentoDocumento(
+    PagamentoResumo Pagamento, IReadOnlyList<DestinacaoPagamento> Destinacoes);

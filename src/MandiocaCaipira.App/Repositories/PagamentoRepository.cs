@@ -85,4 +85,29 @@ public sealed class PagamentoRepository(BancoSqlite banco)
         if (command.ExecuteNonQuery() != 1)
             throw new InvalidOperationException("Pagamento não encontrado ou já estornado.");
     }
+
+    public PagamentoDocumento ObterDocumento(long pagamentoId)
+    {
+        var pagamento = Listar().SingleOrDefault(p => p.Id == pagamentoId)
+            ?? throw new InvalidOperationException("Pagamento não encontrado.");
+        using var connection = banco.AbrirConexao();
+        using var command = connection.CreateCommand();
+        command.CommandText = """
+            SELECT v.Id, v.DataOperacao,
+                   sale_total_cents(v.QuantidadeGramas, v.PrecoCentavosPorKg),
+                   a.ValorCentavos
+            FROM AlocacaoPagamento a
+            JOIN Venda v ON v.Id = a.VendaId
+            WHERE a.PagamentoId = $pagamento
+            ORDER BY v.DataOperacao, v.Id;
+            """;
+        command.Parameters.AddWithValue("$pagamento", pagamentoId);
+        using var reader = command.ExecuteReader();
+        var itens = new List<DestinacaoPagamento>();
+        while (reader.Read())
+            itens.Add(new DestinacaoPagamento(reader.GetInt64(0),
+                FormatoTemporal.LerDataOperacao(reader.GetString(1)),
+                reader.GetInt64(2), reader.GetInt64(3)));
+        return new PagamentoDocumento(pagamento, itens);
+    }
 }
