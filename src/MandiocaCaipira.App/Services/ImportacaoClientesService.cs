@@ -38,7 +38,7 @@ public sealed class ImportacaoClientesService(
 
     public void Reavaliar(CandidatoImportacaoCliente candidato)
     {
-        var nome = NormalizadorNomeCliente.LimparParaExibicao(candidato.NomeParaCadastro);
+        var nome = NormalizadorNomeCliente.NormalizarParaApresentacao(candidato.NomeParaCadastro);
         var normalizado = NormalizadorNomeCliente.NormalizarParaComparacao(nome);
         if (normalizado.Length < 2)
             throw new ArgumentException("Informe um nome válido com pelo menos 2 caracteres.");
@@ -66,7 +66,7 @@ public sealed class ImportacaoClientesService(
         var novos = candidatos.Where(c => c.Acao == AcaoImportacaoCliente.CriarNovo).ToList();
         foreach (var candidato in novos)
         {
-            candidato.NomeParaCadastro = NormalizadorNomeCliente.LimparParaExibicao(candidato.NomeParaCadastro);
+            candidato.NomeParaCadastro = NormalizadorNomeCliente.NormalizarParaApresentacao(candidato.NomeParaCadastro);
             candidato.NomeNormalizado = NormalizadorNomeCliente.NormalizarParaComparacao(candidato.NomeParaCadastro);
             if (candidato.NomeNormalizado.Length < 2)
                 throw new InvalidOperationException("Todos os novos clientes precisam ter um nome válido.");
@@ -108,7 +108,7 @@ public sealed class ImportacaoClientesService(
         Cliente? cliente, string situacao, AcaoImportacaoCliente acao) => new()
     {
         NomeEncontrado = nome,
-        NomeParaCadastro = nome,
+        NomeParaCadastro = NormalizadorNomeCliente.NormalizarParaApresentacao(nome),
         NomeNormalizado = normalizado,
         Ocorrencias = ocorrencias,
         ClienteCorrespondenteId = cliente?.Id,

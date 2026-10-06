@@ -90,29 +90,33 @@ public sealed class MainForm : KryptonForm
     private TabPage SalePage()
     {
         var page = Ui.Page("Nova venda");
-        var centered = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 3, RowCount = 2, Padding = new Padding(0, 8, 0, 0) };
-        centered.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50)); centered.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 850)); centered.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50)); centered.RowStyles.Add(new RowStyle(SizeType.Absolute, 350)); centered.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
-        var box = Ui.Section("Dados da venda", "Preencha os dados e confira o total antes de registrar.", 350); box.Dock = DockStyle.Fill;
+        var host = new Panel { Dock = DockStyle.Fill, AutoScroll = true, Padding = new Padding(0, 8, 0, 0) };
+        var box = Ui.Section("Dados da venda", "Preencha os dados e confira o total antes de registrar.", 408); box.Dock = DockStyle.None; box.MinimumSize = new Size(860, 408);
         var form = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 2, RowCount = 3, Padding = new Padding(4, 0, 4, 0) };
         form.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50)); form.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50));
         form.RowStyles.Add(new RowStyle(SizeType.Absolute, 66)); form.RowStyles.Add(new RowStyle(SizeType.Absolute, 66)); form.RowStyles.Add(new RowStyle(SizeType.Absolute, 66));
         form.Controls.Add(Ui.Labeled("Cliente", _saleClient), 0, 0); form.SetColumnSpan(form.GetControlFromPosition(0, 0)!, 2);
         form.Controls.Add(Ui.Labeled("Quantidade (kg)", _kg), 0, 1); form.Controls.Add(Ui.Labeled("Preço por kg", _price), 1, 1);
         form.Controls.Add(Ui.Labeled("Data da operação", _saleDate), 0, 2); form.Controls.Add(Ui.Labeled("Pagamento inicial (opcional)", _initial), 1, 2);
-        var footer = new TableLayoutPanel { Dock = DockStyle.Bottom, Height = 62, ColumnCount = 2, Padding = new Padding(4, 5, 4, 4) }; footer.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100)); footer.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
-        var totalPanel = new Panel { Dock = DockStyle.Fill, BackColor = Ui.LightGreen, Padding = new Padding(10, 2, 10, 2), Margin = new Padding(0, 0, 16, 0) }; _total.Dock = DockStyle.Fill; totalPanel.Controls.Add(_total); totalPanel.Controls.Add(new Label { Text = "Total da venda", Dock = DockStyle.Top, Height = 18, ForeColor = Ui.Muted, Font = Ui.Font });
-        var submit = Ui.PrimaryButton("Registrar venda", RegisterSale); submit.Anchor = AnchorStyles.Right | AnchorStyles.Bottom; footer.Controls.Add(totalPanel, 0, 0); footer.Controls.Add(submit, 1, 0);
-        box.Controls.Add(form); box.Controls.Add(footer); centered.Controls.Add(box, 1, 0); page.Controls.Add(centered);
+        var footer = new TableLayoutPanel { Dock = DockStyle.Bottom, Height = 78, ColumnCount = 2, RowCount = 1, Padding = new Padding(4, 8, 4, 6) }; footer.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100)); footer.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize)); footer.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+        var totalPanel = new Panel { Dock = DockStyle.Fill, BackColor = Ui.LightGreen, Padding = new Padding(12, 4, 12, 4), Margin = new Padding(0, 0, 16, 0), MinimumSize = new Size(300, 58) }; _total.Dock = DockStyle.Fill; totalPanel.Controls.Add(_total); totalPanel.Controls.Add(new Label { Text = "Total da venda", Dock = DockStyle.Top, Height = 20, ForeColor = Ui.Muted, Font = Ui.Font });
+        var submit = Ui.PrimaryButton("Registrar venda", RegisterSale); submit.Anchor = AnchorStyles.Right; footer.Controls.Add(totalPanel, 0, 0); footer.Controls.Add(submit, 1, 0);
+        box.Controls.Add(form); box.Controls.Add(footer); host.Controls.Add(box);
+        host.Resize += (_, _) => { var horizontalMargin = Math.Max(24, (int)(host.ClientSize.Width * .08)); box.Width = Math.Min(1180, Math.Max(860, host.ClientSize.Width - horizontalMargin * 2)); box.Left = Math.Max(0, (host.ClientSize.Width - box.Width) / 2); box.Top = 8; };
+        page.Controls.Add(host);
         _saleClient.TabIndex = 0; _kg.TabIndex = 1; _price.TabIndex = 2; _saleDate.TabIndex = 3; _initial.TabIndex = 4; submit.TabIndex = 5;
         return page;
     }
     private TabPage PaymentPage()
     {
-        var page = Ui.Page("Registrar pagamento"); var top = Ui.Section("Recebimento", "Escolha o cliente, informe o valor e confira a distribuição.", 185);
-        var form = new TableLayoutPanel { Dock = DockStyle.Left, Width = 780, ColumnCount = 3, RowCount = 1, Padding = new Padding(4, 0, 0, 0) };
-        form.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 44)); form.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 28)); form.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 28));
-        form.Controls.Add(Ui.Labeled("Cliente", _paymentClient), 0, 0); form.Controls.Add(Ui.Labeled("Valor recebido", _received), 1, 0); form.Controls.Add(Ui.Labeled("Data do recebimento", _paymentDate), 2, 0);
-        var metrics = new FlowLayoutPanel { Dock = DockStyle.Bottom, Height = 66, FlowDirection = FlowDirection.LeftToRight, Padding = new Padding(4, 4, 0, 0), WrapContents = false }; metrics.Controls.Add(Ui.InlineMetric("Dívida atual", _debt)); metrics.Controls.Add(Ui.InlineMetric("Crédito restante", _credit)); top.Controls.Add(metrics); top.Controls.Add(form);
+        var page = Ui.Page("Registrar pagamento"); var top = Ui.Section("Recebimento", "Escolha o cliente, informe o valor e confira a distribuição.", 205);
+        var composition = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 2, RowCount = 1, Padding = new Padding(4, 0, 4, 0) };
+        composition.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 64)); composition.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 36));
+        var inputs = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 2, RowCount = 2, Margin = new Padding(0, 0, 20, 0) };
+        inputs.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50)); inputs.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50)); inputs.RowStyles.Add(new RowStyle(SizeType.Percent, 50)); inputs.RowStyles.Add(new RowStyle(SizeType.Percent, 50));
+        inputs.Controls.Add(Ui.Labeled("Cliente", _paymentClient), 0, 0); inputs.SetColumnSpan(inputs.GetControlFromPosition(0, 0)!, 2); inputs.Controls.Add(Ui.Labeled("Valor recebido", _received), 0, 1); inputs.Controls.Add(Ui.Labeled("Data do recebimento", _paymentDate), 1, 1);
+        var metrics = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 1, RowCount = 2, BackColor = Ui.LightGreen, Padding = new Padding(12, 6, 8, 4) }; metrics.RowStyles.Add(new RowStyle(SizeType.Percent, 50)); metrics.RowStyles.Add(new RowStyle(SizeType.Percent, 50)); metrics.Controls.Add(Ui.InlineMetric("Dívida atual", _debt), 0, 0); metrics.Controls.Add(Ui.InlineMetric("Crédito restante", _credit), 0, 1);
+        composition.Controls.Add(inputs, 0, 0); composition.Controls.Add(metrics, 1, 0); top.Controls.Add(composition);
         var distribute = Ui.SecondaryButton("Distribuir automaticamente", Distribute); var confirm = Ui.PrimaryButton("Confirmar pagamento", RegisterPayment); var actions = Ui.Toolbar(); actions.Controls.AddRange([distribute, confirm]);
         var open = Ui.Section("Vendas em aberto", "Use a última coluna para definir quanto será destinado a cada venda.", 400); open.Dock = DockStyle.Fill; open.Controls.Add(_distribution);
         page.Controls.Add(open); page.Controls.Add(actions); page.Controls.Add(top);
@@ -140,7 +144,6 @@ public sealed class MainForm : KryptonForm
         FixColumn(_pending, "Data", 105); FixColumn(_pending, "Total", 125); FixColumn(_pending, "Recebido", 125); FixColumn(_pending, "Saldo", 125);
         FixColumn(_sales, "Data", 95); FixColumn(_sales, "Quantidade", 105); FixColumn(_sales, "Total", 105); FixColumn(_sales, "Recebido", 105); FixColumn(_sales, "Saldo", 105); FixColumn(_sales, "Situacao", 95);
         FixColumn(_payments, "Data", 95); FixColumn(_payments, "Value", 120); FixColumn(_payments, "Aplicado", 110); FixColumn(_payments, "Credito", 105); FixColumn(_payments, "Situacao", 95);
-        FixColumn(_distribution, "Data", 110); FixColumn(_distribution, "Total", 125); FixColumn(_distribution, "Recebido", 125); FixColumn(_distribution, "Saldo", 125); FixColumn(_distribution, "Aplicar", 175);
         foreach (DataGridViewColumn column in _distribution.Columns) column.ReadOnly = true;
         if (_distribution.Columns["Aplicar"] is { } applyColumn) { applyColumn.ReadOnly = false; applyColumn.DefaultCellStyle.Format = "N2"; } _distribution.EditMode = DataGridViewEditMode.EditOnEnter;
     }

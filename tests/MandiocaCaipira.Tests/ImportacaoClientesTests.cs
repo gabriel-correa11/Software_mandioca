@@ -10,6 +10,20 @@ namespace MandiocaCaipira.Tests;
 public sealed class ImportacaoClientesTests
 {
     [Theory]
+    [InlineData("joaozinho", "Joaozinho")]
+    [InlineData("maria silva", "Maria Silva")]
+    [InlineData("MARIA SILVA", "Maria Silva")]
+    [InlineData("  maria   da   silva  ", "Maria da Silva")]
+    [InlineData("JOÃO DOS SANTOS", "João dos Santos")]
+    [InlineData("josé de souza", "José de Souza")]
+    [InlineData("ana-maria d'ávila", "Ana-Maria D'ávila")]
+    [InlineData("de souza", "De Souza")]
+    [InlineData("", "")]
+    [InlineData("   ", "")]
+    public void NormalizacaoDeApresentacaoCapitalizaSemRemoverCaracteres(string entrada, string esperado)
+        => Assert.Equal(esperado, NormalizadorNomeCliente.NormalizarParaApresentacao(entrada));
+
+    [Theory]
     [InlineData("  João   da Silva  ", "JOAO DA SILVA")]
     [InlineData("Ana-Maria", "ANA MARIA")]
     [InlineData("D'Ávila", "D AVILA")]
@@ -62,6 +76,20 @@ public sealed class ImportacaoClientesTests
         Assert.Equal(1, result.Ignorados);
         var imported = Assert.Single(env.Repository.Listar(null, true), c => c.Nome == "Pessoa Nova");
         Assert.Equal(OrigemRegistro.Importacao, imported.Origem);
+    }
+
+    [Fact]
+    public async Task CadastroManualEImportacaoUsamMesmaNormalizacaoDeApresentacao()
+    {
+        using var env = new ImportEnvironment();
+        var clientes = new ClienteService(env.Repository);
+        clientes.Cadastrar("  maria   da   silva ");
+        var preview = await env.Service.AnalisarAsync(env.WriteText("clientes.txt", "JOSÉ DOS SANTOS"));
+        env.Service.Confirmar(preview);
+
+        var names = env.Repository.Listar(null, true).Select(c => c.Nome).ToList();
+        Assert.Contains("Maria da Silva", names);
+        Assert.Contains("José dos Santos", names);
     }
 
     [Fact]

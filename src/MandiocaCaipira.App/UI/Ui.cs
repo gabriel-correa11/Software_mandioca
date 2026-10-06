@@ -52,7 +52,7 @@ internal static class Ui
     }
     public static Panel InlineMetric(string label, Control value)
     {
-        var p = new Panel { Width = 240, Height = 60, Margin = new Padding(0, 0, 12, 0) }; var l = new Label { Text = label, Dock = DockStyle.Top, Height = 21, ForeColor = Muted }; value.Dock = DockStyle.Fill; p.Controls.Add(value); p.Controls.Add(l); return p;
+        var p = new Panel { Dock = DockStyle.Fill, Margin = new Padding(0, 0, 8, 2) }; var l = new Label { Text = label, Dock = DockStyle.Top, Height = 20, ForeColor = Muted }; value.Dock = DockStyle.Fill; p.Controls.Add(value); p.Controls.Add(l); return p;
     }
     public static Panel Section(string title, string subtitle, int height = 390)
     {

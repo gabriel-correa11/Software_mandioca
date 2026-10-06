@@ -10,7 +10,7 @@ public sealed class ClienteService(ClienteRepository repository)
 
     public long Cadastrar(string nome)
     {
-        nome = nome.Trim();
+        nome = NormalizadorNomeCliente.NormalizarParaApresentacao(nome);
         if (nome.Length < 2)
             throw new ArgumentException("Informe um nome com pelo menos 2 caracteres.", nameof(nome));
         return repository.Inserir(nome, OrigemRegistro.Manual, DateTimeOffset.UtcNow);
