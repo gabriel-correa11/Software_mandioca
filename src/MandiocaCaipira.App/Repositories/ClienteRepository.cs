@@ -45,6 +45,32 @@ public sealed class ClienteRepository(BancoSqlite banco)
         return (long)command.ExecuteScalar()!;
     }
 
+    public void InserirImportadosAtomico(IReadOnlyList<string> nomes, DateTimeOffset criadoEm)
+    {
+        if (nomes.Count == 0) return;
+        using var connection = banco.AbrirConexao();
+        using var transaction = connection.BeginTransaction();
+        try
+        {
+            using var command = connection.CreateCommand();
+            command.Transaction = transaction;
+            command.CommandText = "INSERT INTO Cliente(Nome, Origem, CriadoEm) VALUES ($nome, 'Importacao', $criadoEm);";
+            var nome = command.Parameters.Add("$nome", SqliteType.Text);
+            command.Parameters.AddWithValue("$criadoEm", FormatoTemporal.FormatarInstanteUtc(criadoEm));
+            foreach (var item in nomes)
+            {
+                nome.Value = item;
+                command.ExecuteNonQuery();
+            }
+            transaction.Commit();
+        }
+        catch
+        {
+            transaction.Rollback();
+            throw;
+        }
+    }
+
     public void DefinirAtivo(long clienteId, bool ativo)
     {
         using var connection = banco.AbrirConexao();

@@ -13,7 +13,7 @@ public sealed class MainForm : Form
 {
     private static readonly CultureInfo PtBr = CultureInfo.GetCultureInfo("pt-BR");
     private readonly ClienteService _clientes; private readonly VendaService _vendas; private readonly PagamentoService _pagamentos;
-    private readonly ResumoRepository _resumo; private readonly ReciboService _recibos; private readonly BackupService _backup;
+    private readonly ResumoRepository _resumo; private readonly ReciboService _recibos; private readonly BackupService _backup; private readonly ImportacaoClientesService _importacaoClientes;
     private readonly TabControl _pages = new() { Dock = DockStyle.Fill, Appearance = TabAppearance.FlatButtons, SizeMode = TabSizeMode.Fixed, ItemSize = new Size(0, 1) };
     private readonly Label _title = new() { AutoSize = true, Font = new Font("Segoe UI Semibold", 17), ForeColor = Ui.Text };
     private readonly ToolStripStatusLabel _status = new("Pronto"); private readonly Dictionary<int, Button> _nav = [];
@@ -28,9 +28,9 @@ public sealed class MainForm : Form
     private BindingList<DistributionRow> _lines = [];
     private HistoricoKryptonForm? _classicHistory;
 
-    public MainForm(ClienteService clientes, VendaService vendas, PagamentoService pagamentos, ResumoRepository resumo, ReciboService recibos, BackupService backup)
+    public MainForm(ClienteService clientes, VendaService vendas, PagamentoService pagamentos, ResumoRepository resumo, ReciboService recibos, BackupService backup, ImportacaoClientesService importacaoClientes)
     {
-        _clientes = clientes; _vendas = vendas; _pagamentos = pagamentos; _resumo = resumo; _recibos = recibos; _backup = backup;
+        _clientes = clientes; _vendas = vendas; _pagamentos = pagamentos; _resumo = resumo; _recibos = recibos; _backup = backup; _importacaoClientes = importacaoClientes;
         Text = "Mandioca Caipira"; MinimumSize = new Size(1120, 720); Size = new Size(1360, 820); StartPosition = FormStartPosition.CenterScreen;
         Font = Ui.Font; BackColor = Ui.Background; AutoScaleMode = AutoScaleMode.Dpi; Controls.Add(BuildShell()); ConfigureGrids(); WireEvents(); ShowPage(0); RefreshAll();
     }
@@ -63,7 +63,7 @@ public sealed class MainForm : Form
         var actions = Ui.Section("Acesso rápido", "Operações mais usadas no dia a dia", 150); var buttons = Ui.Toolbar(); buttons.Controls.AddRange([Ui.PrimaryButton("Registrar nova venda", () => ShowPage(2)), Ui.PrimaryButton("Registrar pagamento", () => ShowPage(3)), Ui.SecondaryButton("Ver pendências", () => ShowPage(4)), Ui.SecondaryButton("Atualizar resumo", RefreshSummary)]); actions.Controls.Add(buttons);
         page.Controls.Add(actions); page.Controls.Add(summary); return page;
     }
-    private TabPage ClientsPage() { var page = Ui.Page("Clientes"); var bar = Ui.Toolbar(); bar.Controls.AddRange([_search, _inactive, Ui.PrimaryButton("Cadastrar cliente", NewClient), Ui.SecondaryButton("Inativar ou reativar", ToggleClient)]); page.Controls.Add(_clients); page.Controls.Add(bar); return page; }
+    private TabPage ClientsPage() { var page = Ui.Page("Clientes"); var bar = Ui.Toolbar(); bar.Controls.AddRange([_search, _inactive, Ui.PrimaryButton("Cadastrar cliente", NewClient), Ui.SecondaryButton("Importar clientes...", ImportClients), Ui.SecondaryButton("Inativar ou reativar", ToggleClient)]); page.Controls.Add(_clients); page.Controls.Add(bar); return page; }
     private TabPage SalePage()
     {
         var page = Ui.Page("Nova venda"); var box = Ui.Section("Dados da venda", "Preencha os dados e confira o total antes de registrar.", 410); var form = Ui.Form(6);
@@ -121,6 +121,25 @@ public sealed class MainForm : Form
     private static SaleRow ToSaleRow(VendaResumo v) => new(v.Id, v.ClienteId, v.Cliente, v.DataOperacao.ToString("d", PtBr), Kg(v.QuantidadeGramas), Money(v.TotalCentavos), Money(v.RecebidoCentavos), Money(v.SaldoCentavos), v.Cancelada ? "Cancelada" : v.SaldoCentavos == 0 ? "Paga" : v.RecebidoCentavos > 0 ? "Parcial" : "Pendente", v.MotivoCancelamento);
 
     private void NewClient() { var name = TextPrompt.Show(this, "Cadastrar cliente", "Nome do cliente", "Informe como o cliente será identificado nas vendas e pagamentos."); if (name is not null) Run(() => { _clientes.Cadastrar(name); RefreshClients(); RefreshCombos(); }, "Cliente cadastrado com sucesso."); }
+    private async void ImportClients()
+    {
+        using var picker = new OpenFileDialog { Title = "Selecionar arquivo de clientes", Filter = "Arquivos compatíveis (*.xlsx;*.csv;*.txt)|*.xlsx;*.csv;*.txt|Planilha Excel (*.xlsx)|*.xlsx|Arquivo CSV (*.csv)|*.csv|Arquivo de texto (*.txt)|*.txt", CheckFileExists = true, Multiselect = false };
+        if (picker.ShowDialog(this) != DialogResult.OK) return;
+        try
+        {
+            using var preview = new ImportarClientesForm(_importacaoClientes, _clientes.Listar(incluirInativos: true));
+            await preview.LoadFileAsync(picker.FileName);
+            if (preview.ShowDialog(this) != DialogResult.OK || preview.Resultado is not { } result) return;
+            RefreshClients(); RefreshCombos();
+            MessageBox.Show(this, $"Importação concluída.\n\n{result.Encontrados} ocorrência(s) encontrada(s)\n{result.Criados} novo(s) cliente(s) criado(s)\n{result.Associados} associado(s) a cadastro existente\n{result.Ignorados} ignorado(s)", "Importação concluída", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            SetStatus("Importação de clientes concluída.");
+        }
+        catch (Exception ex)
+        {
+            Log.Warning(ex, "Não foi possível preparar a importação de clientes");
+            ShowError(ex is InvalidDataException or NotSupportedException ? ex.Message : "Não foi possível ler o arquivo. Verifique se ele está íntegro, disponível e em um formato compatível.");
+        }
+    }
     private void ToggleClient() { if (Selected<ClientRow>(_clients) is not { } row) { ShowSelection("Selecione um cliente."); return; } Run(() => { _clientes.DefinirAtivo(row.Id, !row.Ativo); RefreshClients(); RefreshCombos(); }, row.Ativo ? "Cliente inativado." : "Cliente reativado."); }
     private void CalculateTotal() { try { _total.Text = Money(_vendas.CalcularTotal(Grams(_kg.Value), Cents(_price.Value))); } catch { _total.Text = "R$ 0,00"; } }
     private void RegisterSale()

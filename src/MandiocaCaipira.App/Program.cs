@@ -25,6 +25,7 @@ static class Program
             var vendasRepo = new VendaRepository(banco);
             var pagamentosRepo = new PagamentoRepository(banco);
             var clientes = new ClienteService(clientesRepo);
+            var importacaoClientes = new ImportacaoClientesService(new LeitorArquivoClientes(), clientesRepo, Log.Logger);
             var vendas = new VendaService(banco, vendasRepo, pagamentosRepo);
             var pagamentos = new PagamentoService(banco, pagamentosRepo, vendasRepo);
             var recibos = new ReciboService(vendasRepo, pagamentosRepo, CaminhosDados.Recibos);
@@ -32,7 +33,7 @@ static class Program
                 Application.Run(new HistoricoKryptonForm(clientes, vendas, pagamentos, recibos, _ => { }));
             else
                 Application.Run(new MainForm(clientes, vendas, pagamentos,
-                    new ResumoRepository(banco), recibos, new BackupService(inicializador)));
+                    new ResumoRepository(banco), recibos, new BackupService(inicializador), importacaoClientes));
         }
         catch (Exception ex)
         {
