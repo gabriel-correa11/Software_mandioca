@@ -20,6 +20,13 @@ public sealed class InicializadorBanco
         "TR_Cliente_SemExclusao", "TR_Venda_ClienteAtivo", "TR_Pagamento_ClienteAtivo"
     ];
 
+    private static readonly IReadOnlyList<MigracaoSchema> Migracoes =
+    [
+        new(0, 1, AplicarV1),
+    ];
+
+    public static int VersaoAtual => Migracoes[^1].VersaoDestino;
+
     public InicializadorBanco(BancoSqlite banco, string diretorioBackups, ILogger? logger = null)
     {
         _banco = banco;
@@ -35,26 +42,54 @@ public sealed class InicializadorBanco
             using var connection = _banco.AbrirConexao();
             var version = Versao(connection);
             _logger.Information("Inicializando banco SQLite na versão de schema {SchemaVersion}", version);
-            if (version > 1)
-                throw new InvalidOperationException("O banco foi criado por uma versão mais recente da aplicação.");
-            if (version == 1)
+
+            if (version > VersaoAtual)
+                throw new InvalidOperationException(
+                    $"O banco foi criado por uma versão mais recente da aplicação (schema v{version}, suportado até v{VersaoAtual}).");
+
+            if (version == VersaoAtual)
             {
                 ValidarBanco(connection);
                 _logger.Information("Banco SQLite validado com sucesso");
                 return;
             }
 
-            using (var check = connection.CreateCommand())
+            if (version == 0)
             {
+                using var check = connection.CreateCommand();
                 check.CommandText = "SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%';";
-                if ((long)check.ExecuteScalar()! != 0)
-                    throw new InvalidOperationException("Banco sem versão com tabelas existentes; migração automática recusada.");
+                var tableCount = (long)check.ExecuteScalar()!;
+                if (tableCount != 0)
+                {
+                    if (PossuiSchemaV1(connection))
+                    {
+                        _logger.Information("Banco legado detectado com schema v1 sem user_version; reconhecendo como v1");
+                        MarcarVersao(connection, 1);
+                        ValidarBanco(connection);
+                        return;
+                    }
+
+                    throw new InvalidOperationException(
+                        "Banco sem versão com tabelas existentes; migração automática recusada.");
+                }
             }
 
-            _logger.Information("Aplicando migration inicial do SQLite");
-            AplicarMigrationInicial(connection);
+            if (version > 0)
+            {
+                _logger.Information("Criando backup antes de migrar de v{From} para v{To}", version, VersaoAtual);
+                CriarBackupAntesDeMigrar();
+            }
+
+            var pendentes = Migracoes.Where(m => m.VersaoOrigem >= version).ToList();
+            foreach (var migracao in pendentes)
+            {
+                _logger.Information("Aplicando migração v{From} → v{To}",
+                    migracao.VersaoOrigem, migracao.VersaoDestino);
+                ExecutarMigracao(connection, migracao);
+            }
+
             ValidarBanco(connection);
-            _logger.Information("Migration inicial do SQLite aplicada com sucesso");
+            _logger.Information("Banco SQLite atualizado para v{Version} com sucesso", VersaoAtual);
         }
         catch (Exception exception)
         {
@@ -88,20 +123,15 @@ public sealed class InicializadorBanco
         }
     }
 
-    private static void AplicarMigrationInicial(SqliteConnection connection)
+    private static void ExecutarMigracao(SqliteConnection connection, MigracaoSchema migracao)
     {
-        // V1 is only created on an empty database. Future migrations must back up
-        // the existing database before changing it.
         using var transaction = connection.BeginTransaction();
         try
         {
-            using var sql = connection.CreateCommand();
-            sql.Transaction = transaction;
-            sql.CommandText = LerScriptInicial();
-            sql.ExecuteNonQuery();
+            migracao.Executar(connection, transaction);
             using var mark = connection.CreateCommand();
             mark.Transaction = transaction;
-            mark.CommandText = "PRAGMA user_version = 1;";
+            mark.CommandText = $"PRAGMA user_version = {migracao.VersaoDestino};";
             mark.ExecuteNonQuery();
             transaction.Commit();
         }
@@ -112,11 +142,36 @@ public sealed class InicializadorBanco
         }
     }
 
+    private static void AplicarV1(SqliteConnection connection, SqliteTransaction transaction)
+    {
+        using var sql = connection.CreateCommand();
+        sql.Transaction = transaction;
+        sql.CommandText = LerScriptEmbutido("MandiocaCaipira.App.Data.Migrations.001_Initial.sql");
+        sql.ExecuteNonQuery();
+    }
+
     private static long Versao(SqliteConnection connection)
     {
         using var command = connection.CreateCommand();
         command.CommandText = "PRAGMA user_version;";
         return (long)command.ExecuteScalar()!;
+    }
+
+    private static void MarcarVersao(SqliteConnection connection, int versao)
+    {
+        using var command = connection.CreateCommand();
+        command.CommandText = $"PRAGMA user_version = {versao};";
+        command.ExecuteNonQuery();
+    }
+
+    private static bool PossuiSchemaV1(SqliteConnection connection)
+    {
+        using var schema = connection.CreateCommand();
+        schema.CommandText = "SELECT COUNT(*) FROM sqlite_schema WHERE name IN (" +
+            string.Join(",", ObjetosObrigatorios.Select((_, index) => $"$name{index}")) + ");";
+        for (var index = 0; index < ObjetosObrigatorios.Length; index++)
+            schema.Parameters.AddWithValue($"$name{index}", ObjetosObrigatorios[index]);
+        return (long)schema.ExecuteScalar()! == ObjetosObrigatorios.Length;
     }
 
     private static void ValidarBanco(SqliteConnection connection)
@@ -135,22 +190,24 @@ public sealed class InicializadorBanco
                 throw new InvalidDataException("O banco de dados contém referências inválidas.");
         }
 
-        using var schema = connection.CreateCommand();
-        schema.CommandText = "SELECT COUNT(*) FROM sqlite_schema WHERE name IN (" +
+        using var check = connection.CreateCommand();
+        check.CommandText = "SELECT COUNT(*) FROM sqlite_schema WHERE name IN (" +
             string.Join(",", ObjetosObrigatorios.Select((_, index) => $"$name{index}")) + ");";
         for (var index = 0; index < ObjetosObrigatorios.Length; index++)
-            schema.Parameters.AddWithValue($"$name{index}", ObjetosObrigatorios[index]);
-        if ((long)schema.ExecuteScalar()! != ObjetosObrigatorios.Length)
+            check.Parameters.AddWithValue($"$name{index}", ObjetosObrigatorios[index]);
+        if ((long)check.ExecuteScalar()! != ObjetosObrigatorios.Length)
             throw new InvalidDataException("O schema do banco está incompleto ou incompatível.");
     }
 
-    private static string LerScriptInicial()
+    private static string LerScriptEmbutido(string resourceName)
     {
         var assembly = Assembly.GetExecutingAssembly();
-        using var stream = assembly.GetManifestResourceStream(
-            "MandiocaCaipira.App.Data.Migrations.001_Initial.sql")
-            ?? throw new InvalidOperationException("Migration v1 não incorporada ao aplicativo.");
+        using var stream = assembly.GetManifestResourceStream(resourceName)
+            ?? throw new InvalidOperationException($"Script de migração '{resourceName}' não incorporado ao aplicativo.");
         using var reader = new StreamReader(stream);
         return reader.ReadToEnd();
     }
+
+    internal sealed record MigracaoSchema(int VersaoOrigem, int VersaoDestino,
+        Action<SqliteConnection, SqliteTransaction> Executar);
 }
