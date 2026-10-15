@@ -98,16 +98,21 @@ public sealed class InicializadorBanco
         }
     }
 
-    public string CriarBackupAntesDeMigrar() => CriarBackup("Backup SQLite criado e validado antes da migration");
+    public string CriarBackupAntesDeMigrar() =>
+        CriarBackupInterno("migracao", "Backup SQLite criado antes da migração");
 
-    public string CriarBackupAgora() => CriarBackup("Backup SQLite manual criado e validado");
+    public string CriarBackupAgora() =>
+        CriarBackupInterno("manual", "Backup SQLite manual criado e validado");
 
-    private string CriarBackup(string mensagemLog)
+    public string CriarBackupAutomatico() =>
+        CriarBackupInterno("auto", "Backup SQLite automático criado e validado");
+
+    internal string CriarBackupInterno(string categoria, string mensagemLog)
     {
         try
         {
             Directory.CreateDirectory(_diretorioBackups);
-            var name = $"mandioca-{DateTimeOffset.UtcNow.ToString("yyyyMMdd-HHmmss-fffffff", CultureInfo.InvariantCulture)}.sqlite";
+            var name = $"mandioca-{categoria}-{DateTimeOffset.UtcNow.ToString("yyyyMMdd-HHmmss-fffffff", CultureInfo.InvariantCulture)}.sqlite";
             var path = Path.Combine(_diretorioBackups, name);
             using var source = _banco.AbrirConexao();
             using var target = new BancoSqlite(path).AbrirConexao();
@@ -121,6 +126,20 @@ public sealed class InicializadorBanco
             _logger.Error(exception, "Falha ao criar ou validar backup SQLite");
             throw;
         }
+    }
+
+    internal static void ValidarArquivoBackup(string caminho)
+    {
+        var banco = new BancoSqlite(caminho);
+        using var connection = banco.AbrirConexao();
+        ValidarBanco(connection);
+    }
+
+    internal static int VersaoDoArquivo(string caminho)
+    {
+        var banco = new BancoSqlite(caminho);
+        using var connection = banco.AbrirConexao();
+        return (int)Versao(connection);
     }
 
     private static void ExecutarMigracao(SqliteConnection connection, MigracaoSchema migracao)
@@ -174,7 +193,7 @@ public sealed class InicializadorBanco
         return (long)schema.ExecuteScalar()! == ObjetosObrigatorios.Length;
     }
 
-    private static void ValidarBanco(SqliteConnection connection)
+    internal static void ValidarBanco(SqliteConnection connection)
     {
         using (var integrity = connection.CreateCommand())
         {

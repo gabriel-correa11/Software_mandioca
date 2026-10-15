@@ -15,12 +15,36 @@ static class Program
         ConfigurarLogging();
         ConfigurarTratamentoDeFalhasInesperadas();
 
+        using var instancia = new InstanciaUnica();
+        if (!instancia.IsOwner)
+        {
+            Log.Warning("Tentativa de abrir segunda instância bloqueada");
+            MessageBox.Show(
+                "O Mandioca Caipira já está em execução.\n\nApenas uma instância pode ser usada por vez para proteger seus dados.",
+                "Mandioca Caipira",
+                MessageBoxButtons.OK,
+                MessageBoxIcon.Information);
+            return;
+        }
+
         try
         {
             Log.Information("Aplicação iniciada");
             var banco = new BancoSqlite(CaminhosDados.Banco);
             var inicializador = new InicializadorBanco(banco, CaminhosDados.Backups, Log.Logger);
             inicializador.Inicializar();
+            var backup = new BackupService(inicializador, CaminhosDados.Backups,
+                CaminhosDados.Banco, Log.Logger);
+
+            if (!backup.TentarBackupAutomatico())
+            {
+                MessageBox.Show(
+                    "Não foi possível criar o backup automático de hoje. O aplicativo continuará normalmente, mas considere fazer um backup manual pelo menu Arquivo.",
+                    "Mandioca Caipira",
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Warning);
+            }
+
             var clientesRepo = new ClienteRepository(banco);
             var vendasRepo = new VendaRepository(banco);
             var pagamentosRepo = new PagamentoRepository(banco);
@@ -30,7 +54,7 @@ static class Program
             var pagamentos = new PagamentoService(banco, pagamentosRepo, vendasRepo);
             var recibos = new ReciboService(vendasRepo, pagamentosRepo, CaminhosDados.Recibos);
             Application.Run(new MainForm(clientes, vendas, pagamentos,
-                new ResumoRepository(banco), recibos, new BackupService(inicializador), importacaoClientes));
+                new ResumoRepository(banco), recibos, backup, importacaoClientes));
         }
         catch (Exception ex)
         {

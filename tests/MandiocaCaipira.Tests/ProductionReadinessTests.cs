@@ -84,7 +84,7 @@ public sealed class ProductionReadinessTests
             inicializador.Inicializar();
             var clientes = new ClienteRepository(banco); var vendas = new VendaRepository(banco); var pagamentos = new PagamentoRepository(banco);
             Clientes = new ClienteService(clientes); Vendas = new VendaService(banco, vendas, pagamentos); Pagamentos = new PagamentoService(banco, pagamentos, vendas);
-            Recibos = new ReciboService(vendas, pagamentos, Path.Combine(_root, "recibos")); Backup = new BackupService(inicializador);
+            Recibos = new ReciboService(vendas, pagamentos, Path.Combine(_root, "recibos")); Backup = new BackupService(inicializador, Path.Combine(_root, "backups"), banco.CaminhoBanco);
         }
         public void Dispose() { if (Directory.Exists(_root)) Directory.Delete(_root, true); }
     }

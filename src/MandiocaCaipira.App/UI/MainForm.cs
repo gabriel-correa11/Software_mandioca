@@ -16,7 +16,7 @@ public sealed class MainForm : KryptonForm
     private readonly ClienteService _clientes; private readonly VendaService _vendas; private readonly PagamentoService _pagamentos;
     private readonly ResumoRepository _resumo; private readonly ReciboService _recibos; private readonly BackupService _backup; private readonly ImportacaoClientesService _importacaoClientes;
     private readonly TabControl _pages = new() { Dock = DockStyle.Fill, Appearance = TabAppearance.FlatButtons, SizeMode = TabSizeMode.Fixed, ItemSize = new Size(0, 1) };
-    private readonly Label _title = new() { AutoSize = true, Font = Ui.TitleFont, ForeColor = Ui.Text };
+
     private readonly ToolStripStatusLabel _status = new("Pronto"); private readonly Dictionary<int, ToolStripButton> _nav = [];
     private readonly DataGridView _clients = Ui.Grid(), _pending = Ui.Grid(), _sales = Ui.Grid(), _payments = Ui.Grid(), _distribution = Ui.Grid(false);
     private readonly ComboBox _saleClient = Ui.Combo(), _paymentClient = Ui.Combo(), _historyClient = Ui.Combo();
@@ -39,9 +39,8 @@ public sealed class MainForm : KryptonForm
     private Control BuildShell()
     {
         _pages.TabPages.AddRange([HomePage(), ClientsPage(), SalePage(), PaymentPage(), PendingPage(), HistoryPage()]);
-        var header = new KryptonPanel { Dock = DockStyle.Top, Height = 52, Padding = new Padding(12, 12, 10, 5) }; header.StateCommon.Color1 = SystemColors.Control; header.Controls.Add(_title);
         var status = new StatusStrip { SizingGrip = false }; status.Items.Add(_status);
-        var content = new KryptonPanel { Dock = DockStyle.Fill, Padding = new Padding(9) }; content.StateCommon.Color1 = SystemColors.Control; content.Controls.Add(_pages); content.Controls.Add(header); content.Controls.Add(BuildToolStrip()); content.Controls.Add(BuildMenu()); content.Controls.Add(status);
+        var content = new KryptonPanel { Dock = DockStyle.Fill, Padding = new Padding(9) }; content.StateCommon.Color1 = SystemColors.Control; content.Controls.Add(_pages); content.Controls.Add(BuildToolStrip()); content.Controls.Add(BuildMenu()); content.Controls.Add(status);
         return content;
     }
 
@@ -50,6 +49,8 @@ public sealed class MainForm : KryptonForm
         var menu = new MenuStrip { Dock = DockStyle.Top };
         var arquivo = new ToolStripMenuItem("&Arquivo");
         arquivo.DropDownItems.Add("Fazer &backup agora", null, (_, _) => CreateBackup());
+        arquivo.DropDownItems.Add("&Restaurar backup...", null, (_, _) => RestoreBackup());
+        arquivo.DropDownItems.Add(new ToolStripSeparator());
         arquivo.DropDownItems.Add("Abrir pasta de backups", null, (_, _) => OpenFolder(CaminhosDados.Backups));
         arquivo.DropDownItems.Add("Abrir pasta de comprovantes", null, (_, _) => OpenFolder(CaminhosDados.Recibos));
         arquivo.DropDownItems.Add(new ToolStripSeparator());
@@ -129,7 +130,7 @@ public sealed class MainForm : KryptonForm
     private TabPage HistoryPage()
     {
         var page = Ui.Page("Histórico"); _from.Value = DateTime.Today.AddMonths(-1); var filters = Ui.Toolbar(); filters.Controls.AddRange([Ui.Caption("Cliente"), _historyClient, Ui.Caption("De"), _from, Ui.Caption("Até"), _to, Ui.PrimaryButton("Aplicar filtros", RefreshHistory)]);
-        var split = new SplitContainer { Dock = DockStyle.Fill, Orientation = Orientation.Horizontal, SplitterDistance = 285, BackColor = Ui.Border }; split.Panel1.Padding = new Padding(0, 36, 0, 0); split.Panel2.Padding = new Padding(0, 36, 0, 0);
+        var split = new SplitContainer { Dock = DockStyle.Fill, Orientation = Orientation.Horizontal, SplitterDistance = 285, BackColor = Ui.Border }; split.Panel1.Padding = Padding.Empty; split.Panel2.Padding = Padding.Empty;
         split.Panel1MinSize = 150; split.Panel2MinSize = 150; split.SizeChanged += (_, _) => { if (split.Height > 320) split.SplitterDistance = (split.Height - split.SplitterWidth) / 2; };
         split.Panel1.Controls.Add(_sales); split.Panel1.Controls.Add(Ui.SectionHeader("Vendas", Ui.DangerButton("Cancelar venda", CancelSale), Ui.SecondaryButton("Gerar comprovante", GenerateSaleReceipt)));
         split.Panel2.Controls.Add(_payments); split.Panel2.Controls.Add(Ui.SectionHeader("Pagamentos", Ui.DangerButton("Estornar pagamento", ReversePayment), Ui.SecondaryButton("Gerar recibo", GeneratePaymentReceipt)));
@@ -160,7 +161,7 @@ public sealed class MainForm : KryptonForm
     }
     private void ShowPage(int index)
     {
-        _pages.SelectedIndex = index; _title.Text = _pages.TabPages[index].Text; foreach (var n in _nav) n.Value.Checked = n.Key == index;
+        _pages.SelectedIndex = index; foreach (var n in _nav) n.Value.Checked = n.Key == index;
         if (index == 0) RefreshSummary(); if (index == 3) LoadDistribution(); if (index == 4) RefreshPending(); if (index == 5) RefreshHistory();
         if (IsHandleCreated) BeginInvoke(FocusCurrentPage);
     }
@@ -220,6 +221,21 @@ public sealed class MainForm : KryptonForm
     private void GeneratePaymentReceipt() { if (Selected<PaymentRow>(_payments) is { } row) GenerateAndOpen(() => _recibos.GerarPagamento(row.Id)); else ShowSelection("Selecione um pagamento."); }
     private void GenerateAndOpen(Func<string> generate) => Run(() => Process.Start(new ProcessStartInfo(generate()) { UseShellExecute = true }), "Comprovante gerado e aberto.", false);
     private void CreateBackup() => Run(() => { var path = _backup.Criar(); MessageBox.Show(this, $"Backup criado com sucesso em:\n{path}", "Backup concluído", MessageBoxButtons.OK, MessageBoxIcon.Information); }, "Backup concluído.", false);
+    private void RestoreBackup()
+    {
+        var backups = _backup.Listar();
+        if (backups.Count == 0) { MessageBox.Show(this, "Nenhum backup disponível para restauração.", "Restaurar backup", MessageBoxButtons.OK, MessageBoxIcon.Information); return; }
+        using var dialog = new RestaurarBackupForm(backups);
+        if (dialog.ShowDialog(this) != DialogResult.OK || dialog.BackupSelecionado is not { } selected) return;
+        var confirm = MessageBox.Show(this,
+            $"Restaurar o backup de {selected.Data:dd/MM/yyyy} ({selected.CategoriaTexto})?\n\nO banco atual será substituído. Uma cópia de segurança será criada antes da restauração.\n\nO aplicativo será reiniciado após a restauração.",
+            "Confirmar restauração", MessageBoxButtons.YesNo, MessageBoxIcon.Warning);
+        if (confirm != DialogResult.Yes) return;
+        var result = _backup.Restaurar(selected.Caminho);
+        if (!result.Ok) { ShowError(result.Mensagem!); return; }
+        MessageBox.Show(this, "Backup restaurado com sucesso. O aplicativo será reiniciado.", "Restauração concluída", MessageBoxButtons.OK, MessageBoxIcon.Information);
+        Application.Restart();
+    }
 
     private bool Run(Action action, string success, bool showSuccess = true) { try { action(); SetStatus(success); if (showSuccess) MessageBox.Show(this, success, "Mandioca Caipira", MessageBoxButtons.OK, MessageBoxIcon.Information); return true; } catch (Exception ex) { Log.Warning(ex, "Operação solicitada pelo usuário não pôde ser concluída"); ShowError(FriendlyError(ex)); return false; } }
     private static string FriendlyError(Exception ex) => ex.Message.Contains("locked", StringComparison.OrdinalIgnoreCase) || ex.Message.Contains("busy", StringComparison.OrdinalIgnoreCase) ? "O banco de dados está sendo usado por outro processo. Aguarde alguns segundos e tente novamente." : ex is UnauthorizedAccessException ? "O Windows não permitiu gravar o arquivo. Verifique as permissões e tente novamente." : ex.Message;
