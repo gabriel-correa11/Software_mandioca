@@ -12,7 +12,7 @@ public static class MauiProgram
 {
     private static InstanciaUnica? _instancia;
 
-    public static readonly string UpdateUrl = CaminhosDados.Updates;
+    public const string RepoUrl = "https://github.com/gabriel-correa11/Software_mandioca";
 
     public static MauiApp CreateMauiApp()
     {
@@ -74,7 +74,7 @@ public static class MauiProgram
             new VendaRepository(banco), new PagamentoRepository(banco), CaminhosDados.Recibos));
         builder.Services.AddSingleton(new ImportacaoClientesService(
             new LeitorArquivoClientes(), new ClienteRepository(banco), Log.Logger));
-        builder.Services.AddSingleton(new UpdateService(UpdateUrl));
+        builder.Services.AddSingleton(new UpdateService(RepoUrl));
 
         return builder.Build();
     }

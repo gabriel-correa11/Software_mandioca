@@ -11,5 +11,4 @@ public static class CaminhosDados
     public static string Logs => Path.Combine(DiretorioBase, "Logs");
     public static string Recibos => Path.Combine(DiretorioBase, "Recibos");
     public static string Fotos => Path.Combine(DiretorioBase, "Fotos");
-    public static string Updates => Path.Combine(DiretorioBase, "Updates");
 }

@@ -5,11 +5,11 @@ namespace MandiocaCaipira.Desktop.Services;
 
 public sealed class UpdateService
 {
-    private readonly string _updateUrl;
+    private readonly GithubSource _source;
 
-    public UpdateService(string updateUrl)
+    public UpdateService(string repoUrl)
     {
-        _updateUrl = updateUrl;
+        _source = new GithubSource(repoUrl, accessToken: null, prerelease: false);
     }
 
     public bool UpdateAvailable { get; private set; }
@@ -17,7 +17,7 @@ public sealed class UpdateService
 
     public async Task<bool> CheckForUpdatesAsync()
     {
-        var mgr = new UpdateManager(new SimpleFileSource(new DirectoryInfo(_updateUrl)));
+        var mgr = new UpdateManager(_source);
         var info = await mgr.CheckForUpdatesAsync();
         if (info is null)
         {
@@ -33,7 +33,7 @@ public sealed class UpdateService
 
     public async Task ApplyUpdateAsync()
     {
-        var mgr = new UpdateManager(new SimpleFileSource(new DirectoryInfo(_updateUrl)));
+        var mgr = new UpdateManager(_source);
         var info = await mgr.CheckForUpdatesAsync();
         if (info is null) return;
 
