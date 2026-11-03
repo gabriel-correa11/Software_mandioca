@@ -1,0 +1,170 @@
+@page "/nova-compra"
+@inject CompraService CompraSvc
+@inject FornecedorRepository Fornecedores
+@inject FotoService Fotos
+
+<div class="page-header">
+    <h1>Nova compra de mandioca</h1>
+</div>
+
+<div class="page-body">
+    @if (_mensagem is not null)
+    {
+        <div class="alert @(_erro ? "alert-error" : "alert-success")">@_mensagem</div>
+    }
+
+    <div class="card" style="margin-bottom:20px">
+        <div class="card-body">
+            <div class="form-grid">
+                <div class="form-group">
+                    <label>Fornecedor</label>
+                    <select @bind="_fornecedorId" class="form-control">
+                        <option value="0">Selecione...</option>
+                        @foreach (var f in _fornecedores)
+                        {
+                            <option value="@f.Id">@f.Nome @(f.Apelido is not null ? $"({f.Apelido})" : "")</option>
+                        }
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Data da compra</label>
+                    <input type="date" @bind="_dataCompra" class="form-control" max="@DateOnly.FromDateTime(DateTime.Today)" />
+                </div>
+                <div class="form-group">
+                    <label>Peso bruto (kg)</label>
+                    <input type="number" step="0.01" min="0" @bind="_pesoBrutoKg"
+                           @bind:after="RecalcularRendimento" class="form-control" />
+                </div>
+                <div class="form-group">
+                    <label>Peso cascado (kg)</label>
+                    <input type="number" step="0.01" min="0" @bind="_pesoCascadoKg"
+                           @bind:after="RecalcularRendimento" class="form-control" />
+                </div>
+                <div class="form-group">
+                    <label>Custo total (R$) <span class="text-muted text-sm">(opcional)</span></label>
+                    <input type="number" step="0.01" min="0" @bind="_custoReais" class="form-control" />
+                </div>
+                <div class="form-group">
+                    <label>Observação <span class="text-muted text-sm">(opcional)</span></label>
+                    <input type="text" @bind="_observacao" class="form-control" />
+                </div>
+            </div>
+        </div>
+    </div>
+
+    @if (_rendimento is not null)
+    {
+        <div class="card" style="margin-bottom:20px">
+            <div class="card-header">Rendimento do lote</div>
+            <div class="card-body">
+                <div class="summary-grid">
+                    <div class="summary-card">
+                        <div class="summary-label">Perda</div>
+                        <div class="summary-value">@Fmt.Kg(_rendimento.PerdaGramas)</div>
+                        <div class="summary-sub">@(_rendimento.PerdaPercentual.ToString("P2", Fmt.PtBr))</div>
+                    </div>
+                    <div class="summary-card">
+                        <div class="summary-label">Padrão de perda</div>
+                        <div class="summary-value">@((_snapshotPerdaBp / 100m).ToString("N2"))%</div>
+                    </div>
+                    <div class="summary-card">
+                        <div class="summary-label">Peso esperado</div>
+                        <div class="summary-value">@Fmt.Kg(_rendimento.PesoEsperadoGramas)</div>
+                    </div>
+                    <div class="summary-card">
+                        <div class="summary-label">Déficit</div>
+                        <div class="summary-value">@Fmt.Kg(_rendimento.DeficitGramas)</div>
+                    </div>
+                    <div class="summary-card">
+                        <div class="summary-label">Sacos equivalentes</div>
+                        <div class="summary-value">@Math.Round(_rendimento.SacosEquivalentes, 2)</div>
+                    </div>
+                    <div class="summary-card">
+                        <div class="summary-label">Rendimento por saco</div>
+                        <div class="summary-value">@Fmt.Kg((long)_rendimento.GramasPorSacoObtido)</div>
+                        <div class="summary-sub">padrão: @Fmt.Kg(_snapshotGramasPorSaco)</div>
+                    </div>
+                </div>
+                <div style="margin-top:12px;font-weight:600;@(_rendimento.PerdaAcimaDoPadrao ? "color:var(--danger)" : "color:var(--green)")">
+                    @(_rendimento.PerdaAcimaDoPadrao ? "Perda acima do padrão" : "Dentro do padrão")
+                </div>
+            </div>
+        </div>
+    }
+
+    <div class="btn-group">
+        <button class="btn btn-primary" @onclick="Registrar">Registrar compra</button>
+        <button class="btn btn-secondary" @onclick="Limpar">Limpar</button>
+    </div>
+</div>
+
+@code {
+    private IReadOnlyList<Fornecedor> _fornecedores = [];
+    private long _fornecedorId;
+    private DateOnly _dataCompra = DateOnly.FromDateTime(DateTime.Today);
+    private decimal _pesoBrutoKg;
+    private decimal _pesoCascadoKg;
+    private decimal? _custoReais;
+    private string? _observacao;
+    private string? _mensagem;
+    private bool _erro;
+
+    private RendimentoLote? _rendimento;
+    private long _snapshotPerdaBp = 3000;
+    private long _snapshotGramasPorSaco = 21_000;
+    private long _snapshotTamanhoSaco = 30_000;
+
+    protected override void OnInitialized()
+    {
+        _fornecedores = Fornecedores.Listar();
+    }
+
+    private void RecalcularRendimento()
+    {
+        _rendimento = null;
+        var bruto = (long)(_pesoBrutoKg * 1000);
+        var cascado = (long)(_pesoCascadoKg * 1000);
+        if (bruto <= 0 || cascado <= 0 || cascado > bruto) return;
+
+        try
+        {
+            _rendimento = RendimentoService.Calcular(bruto, cascado,
+                _snapshotPerdaBp, _snapshotGramasPorSaco, _snapshotTamanhoSaco);
+        }
+        catch { /* input incompleto, ignorar */ }
+    }
+
+    private void Registrar()
+    {
+        _mensagem = null;
+        try
+        {
+            var bruto = (long)(_pesoBrutoKg * 1000);
+            var cascado = (long)(_pesoCascadoKg * 1000);
+            long? custo = _custoReais.HasValue ? (long)(_custoReais.Value * 100) : null;
+
+            var id = CompraSvc.Registrar(_fornecedorId, _dataCompra, bruto, cascado,
+                custo, null, _observacao);
+
+            _mensagem = $"Compra #{id} registrada com sucesso.";
+            _erro = false;
+            Limpar();
+        }
+        catch (Exception ex)
+        {
+            _mensagem = ex.Message;
+            _erro = true;
+        }
+    }
+
+    private void Limpar()
+    {
+        _fornecedorId = 0;
+        _dataCompra = DateOnly.FromDateTime(DateTime.Today);
+        _pesoBrutoKg = 0;
+        _pesoCascadoKg = 0;
+        _custoReais = null;
+        _observacao = null;
+        _rendimento = null;
+    }
+}

@@ -53,6 +53,7 @@ public sealed class VendaService(
     {
         motivo = motivo.Trim();
         if (motivo.Length < 3) throw new ArgumentException("Informe o motivo do cancelamento.");
+        if (motivo.Length > 500) throw new ArgumentException("Motivo muito longo (máximo 500 caracteres).");
         vendas.Cancelar(vendaId, motivo, DateTimeOffset.UtcNow);
     }
 }

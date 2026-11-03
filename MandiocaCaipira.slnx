@@ -1,6 +1,7 @@
 <Solution>
   <Folder Name="/src/">
     <Project Path="src/MandiocaCaipira.App/MandiocaCaipira.App.csproj" />
+    <Project Path="src/MandiocaCaipira.Desktop/MandiocaCaipira.Desktop.csproj" />
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/MandiocaCaipira.Tests/MandiocaCaipira.Tests.csproj" />

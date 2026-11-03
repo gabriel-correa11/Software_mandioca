@@ -43,7 +43,8 @@ public sealed class MigracaoTests
         }
         env.Inicializador.Inicializar();
         using var db2 = env.Banco.AbrirConexao();
-        Assert.Equal(1L, Escalar(db2, "PRAGMA user_version;"));
+        // Legacy DB recognized as v1 then migrated to current version
+        Assert.Equal((long)InicializadorBanco.VersaoAtual, Escalar(db2, "PRAGMA user_version;"));
         Assert.Equal(1L, Escalar(db2, "SELECT COUNT(*) FROM Cliente;"));
     }
 
@@ -72,10 +73,11 @@ public sealed class MigracaoTests
         using var env = new MigracaoEnv();
         env.Inicializador.Inicializar();
         using var db = env.Banco.AbrirConexao();
+        var v = (int)InicializadorBanco.VersaoAtual;
         Executar(db, "INSERT INTO Cliente(Nome,Origem,CriadoEm) VALUES ('Original','Manual','2026-09-20T10:00:00.0000000Z');");
 
-        // Simulate v1→v2: add column
-        var m2 = new InicializadorBanco.MigracaoSchema(1, 2, (conn, tx) =>
+        // Simulate v_current → v_current+1: add column
+        var m2 = new InicializadorBanco.MigracaoSchema(v, v + 1, (conn, tx) =>
         {
             using var cmd = conn.CreateCommand();
             cmd.Transaction = tx;
@@ -83,8 +85,8 @@ public sealed class MigracaoTests
             cmd.ExecuteNonQuery();
         });
 
-        // Simulate v2→v3: add index
-        var m3 = new InicializadorBanco.MigracaoSchema(2, 3, (conn, tx) =>
+        // Simulate v_current+1 → v_current+2: add index
+        var m3 = new InicializadorBanco.MigracaoSchema(v + 1, v + 2, (conn, tx) =>
         {
             using var cmd = conn.CreateCommand();
             cmd.Transaction = tx;
@@ -95,7 +97,7 @@ public sealed class MigracaoTests
         ExecutarMigracaoPublica(db, m2);
         ExecutarMigracaoPublica(db, m3);
 
-        Assert.Equal(3L, Escalar(db, "PRAGMA user_version;"));
+        Assert.Equal((long)(v + 2), Escalar(db, "PRAGMA user_version;"));
         Assert.Equal(1L, Escalar(db, "SELECT COUNT(*) FROM Cliente;"));
         // Column exists
         Executar(db, "UPDATE Cliente SET Telefone='123' WHERE Id=1;");
@@ -109,17 +111,18 @@ public sealed class MigracaoTests
         using var env = new MigracaoEnv();
         env.Inicializador.Inicializar();
         using var db = env.Banco.AbrirConexao();
-        Assert.Equal(1L, Escalar(db, "PRAGMA user_version;"));
+        var versaoAtual = (long)InicializadorBanco.VersaoAtual;
+        Assert.Equal(versaoAtual, Escalar(db, "PRAGMA user_version;"));
 
-        // Migration from v0→v1 should NOT run again (we're already at v1)
+        // Migration from v0→v1 should NOT run again
         var v0Applied = false;
         var m0 = new InicializadorBanco.MigracaoSchema(0, 1, (_, _) => v0Applied = true);
 
-        // Migration from v1→v2 SHOULD run
-        var v1Applied = false;
-        var m1 = new InicializadorBanco.MigracaoSchema(1, 2, (conn, tx) =>
+        // Migration from current → current+1 SHOULD run
+        var vNextApplied = false;
+        var mNext = new InicializadorBanco.MigracaoSchema((int)versaoAtual, (int)versaoAtual + 1, (conn, tx) =>
         {
-            v1Applied = true;
+            vNextApplied = true;
             using var cmd = conn.CreateCommand();
             cmd.Transaction = tx;
             cmd.CommandText = "ALTER TABLE Cliente ADD COLUMN Nota TEXT;";
@@ -128,12 +131,12 @@ public sealed class MigracaoTests
 
         // Only apply pending: filter by version >= current
         var currentVersion = Escalar(db, "PRAGMA user_version;");
-        foreach (var m in new[] { m0, m1 }.Where(x => x.VersaoOrigem >= currentVersion))
+        foreach (var m in new[] { m0, mNext }.Where(x => x.VersaoOrigem >= currentVersion))
             ExecutarMigracaoPublica(db, m);
 
         Assert.False(v0Applied);
-        Assert.True(v1Applied);
-        Assert.Equal(2L, Escalar(db, "PRAGMA user_version;"));
+        Assert.True(vNextApplied);
+        Assert.Equal(versaoAtual + 1, Escalar(db, "PRAGMA user_version;"));
     }
 
     [Fact]
@@ -142,8 +145,9 @@ public sealed class MigracaoTests
         using var env = new MigracaoEnv();
         env.Inicializador.Inicializar();
         using var db = env.Banco.AbrirConexao();
+        var versaoAtual = (long)InicializadorBanco.VersaoAtual;
 
-        var migracaoComFalha = new InicializadorBanco.MigracaoSchema(1, 2, (conn, tx) =>
+        var migracaoComFalha = new InicializadorBanco.MigracaoSchema((int)versaoAtual, (int)versaoAtual + 1, (conn, tx) =>
         {
             using var cmd = conn.CreateCommand();
             cmd.Transaction = tx;
@@ -154,8 +158,8 @@ public sealed class MigracaoTests
 
         Assert.Throws<InvalidOperationException>(() => ExecutarMigracaoPublica(db, migracaoComFalha));
 
-        // Version must remain at 1
-        Assert.Equal(1L, Escalar(db, "PRAGMA user_version;"));
+        // Version must remain at current
+        Assert.Equal(versaoAtual, Escalar(db, "PRAGMA user_version;"));
 
         // Column must NOT exist (rollback)
         var columns = Escalar(db,
@@ -169,13 +173,14 @@ public sealed class MigracaoTests
         using var env = new MigracaoEnv();
         env.Inicializador.Inicializar();
         using var db = env.Banco.AbrirConexao();
+        var versaoAtual = (long)InicializadorBanco.VersaoAtual;
         Executar(db, "INSERT INTO Cliente(Nome,Origem,CriadoEm) VALUES ('Preservado','Manual','2026-09-20T10:00:00.0000000Z');");
 
-        var migracaoFalha = new InicializadorBanco.MigracaoSchema(1, 2, (_, _) =>
+        var migracaoFalha = new InicializadorBanco.MigracaoSchema((int)versaoAtual, (int)versaoAtual + 1, (_, _) =>
             throw new Exception("Disco cheio simulado"));
 
         Assert.Throws<Exception>(() => ExecutarMigracaoPublica(db, migracaoFalha));
-        Assert.Equal(1L, Escalar(db, "PRAGMA user_version;"));
+        Assert.Equal(versaoAtual, Escalar(db, "PRAGMA user_version;"));
         Assert.Equal(1L, Escalar(db, "SELECT COUNT(*) FROM Cliente;"));
     }
 
@@ -185,8 +190,9 @@ public sealed class MigracaoTests
         using var env = new MigracaoEnv();
         env.Inicializador.Inicializar();
         using var db = env.Banco.AbrirConexao();
+        var v = (int)InicializadorBanco.VersaoAtual;
 
-        var migracao = new InicializadorBanco.MigracaoSchema(1, 2, (conn, tx) =>
+        var migracao = new InicializadorBanco.MigracaoSchema(v, v + 1, (conn, tx) =>
         {
             using var cmd = conn.CreateCommand();
             cmd.Transaction = tx;
@@ -195,7 +201,7 @@ public sealed class MigracaoTests
         });
 
         ExecutarMigracaoPublica(db, migracao);
-        Assert.Equal(2L, Escalar(db, "PRAGMA user_version;"));
+        Assert.Equal((long)(v + 1), Escalar(db, "PRAGMA user_version;"));
     }
 
     [Fact]
@@ -204,13 +210,14 @@ public sealed class MigracaoTests
         using var env = new MigracaoEnv();
         env.Inicializador.Inicializar();
         using var db = env.Banco.AbrirConexao();
+        var v = (int)InicializadorBanco.VersaoAtual;
         Executar(db, "INSERT INTO Cliente(Nome,Origem,CriadoEm) VALUES ('Alfa','Manual','2026-09-20T10:00:00.0000000Z');");
         Executar(db, "INSERT INTO Cliente(Nome,Origem,CriadoEm) VALUES ('Beta','Manual','2026-09-20T10:00:00.0000000Z');");
         Executar(db, "INSERT INTO Venda(ClienteId,QuantidadeGramas,PrecoCentavosPorKg,DataOperacao,CriadoEm,Origem) VALUES (1,1000,100,'2026-09-20','2026-09-20T10:00:00.0000000Z','Manual');");
         Executar(db, "INSERT INTO Pagamento(ClienteId,ValorCentavos,DataOperacao,CriadoEm,Origem) VALUES (1,100,'2026-09-20','2026-09-20T10:00:00.0000000Z','Manual');");
         Executar(db, "INSERT INTO AlocacaoPagamento(PagamentoId,VendaId,ValorCentavos,CriadoEm) VALUES (1,1,100,'2026-09-20T10:00:00.0000000Z');");
 
-        var migracao = new InicializadorBanco.MigracaoSchema(1, 2, (conn, tx) =>
+        var migracao = new InicializadorBanco.MigracaoSchema(v, v + 1, (conn, tx) =>
         {
             using var cmd = conn.CreateCommand();
             cmd.Transaction = tx;
@@ -232,8 +239,9 @@ public sealed class MigracaoTests
         using var env = new MigracaoEnv();
         env.Inicializador.Inicializar();
         using var db = env.Banco.AbrirConexao();
+        var v = (int)InicializadorBanco.VersaoAtual;
 
-        var migracao = new InicializadorBanco.MigracaoSchema(1, 2, (conn, tx) =>
+        var migracao = new InicializadorBanco.MigracaoSchema(v, v + 1, (conn, tx) =>
         {
             using var cmd = conn.CreateCommand();
             cmd.Transaction = tx;
@@ -271,7 +279,7 @@ public sealed class MigracaoTests
         Assert.True(File.Exists(backupPath));
         using var backupDb = new BancoSqlite(backupPath).AbrirConexao();
         Assert.Equal(1L, Escalar(backupDb, "SELECT COUNT(*) FROM Cliente;"));
-        Assert.Equal(1L, Escalar(backupDb, "PRAGMA user_version;"));
+        Assert.Equal((long)InicializadorBanco.VersaoAtual, Escalar(backupDb, "PRAGMA user_version;"));
     }
 
     [Fact]

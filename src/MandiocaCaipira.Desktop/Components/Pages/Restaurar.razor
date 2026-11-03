@@ -1,0 +1,133 @@
+@page "/restaurar"
+@inject BackupService Backup
+@inject InstanciaUnica Instancia
+
+<div class="page-header">
+    <h1>Restaurar backup</h1>
+    <p>Selecione um backup para restaurar. O banco atual será substituído.</p>
+</div>
+
+<div class="page-body">
+    @if (_mensagem is not null)
+    {
+        <div class="alert @(_erro ? "alert-error" : "alert-success")">@_mensagem</div>
+    }
+
+    <div class="card">
+        <div class="table-wrapper">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Data</th>
+                        <th>Tipo</th>
+                        <th class="text-right">Tamanho</th>
+                        <th>Arquivo</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var b in _backups)
+                    {
+                        <tr class="@(b == _selecionado ? "selected" : "")"
+                            @onclick="() => _selecionado = b">
+                            <td>@b.Data.ToString("dd/MM/yyyy")</td>
+                            <td><span class="badge badge-gray">@b.CategoriaTexto</span></td>
+                            <td class="text-right text-sm text-muted">@FormatSize(b.TamanhoBytes)</td>
+                            <td class="text-sm text-muted">@b.NomeArquivo</td>
+                            <td class="text-center">
+                                <button class="btn btn-primary btn-sm"
+                                        @onclick="() => IniciarRestauracao(b)"
+                                        @onclick:stopPropagation="true">
+                                    Restaurar
+                                </button>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+            @if (_backups.Count == 0)
+            {
+                <div class="empty-state">Nenhum backup disponível.</div>
+            }
+        </div>
+    </div>
+</div>
+
+@if (_confirmando)
+{
+    <div style="position:fixed;inset:0;background:rgba(0,0,0,0.3);display:flex;align-items:center;justify-content:center;z-index:100">
+        <div class="card" style="width:480px">
+            <div class="card-header">Confirmar restauração</div>
+            <div class="card-body">
+                <p style="margin-bottom:14px">
+                    Restaurar o backup de <strong>@_alvo!.Data.ToString("dd/MM/yyyy")</strong>
+                    (@_alvo.CategoriaTexto)?
+                </p>
+                <p class="text-sm text-muted" style="margin-bottom:14px">
+                    O banco atual será substituído. Uma cópia de segurança será criada antes da restauração.
+                    O aplicativo será reiniciado.
+                </p>
+                <div class="btn-group" style="justify-content:flex-end">
+                    <button class="btn btn-secondary" @onclick="() => _confirmando = false">Cancelar</button>
+                    <button class="btn btn-danger" @onclick="ExecutarRestauracao">Confirmar restauração</button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private IReadOnlyList<InfoBackup> _backups = [];
+    private InfoBackup? _selecionado;
+    private InfoBackup? _alvo;
+    private bool _confirmando;
+    private string? _mensagem;
+    private bool _erro;
+
+    protected override void OnInitialized()
+    {
+        _backups = Backup.Listar();
+    }
+
+    private void IniciarRestauracao(InfoBackup backup)
+    {
+        _alvo = backup;
+        _confirmando = true;
+        _mensagem = null;
+    }
+
+    private void ExecutarRestauracao()
+    {
+        _confirmando = false;
+        if (_alvo is null) return;
+
+        var resultado = Backup.Restaurar(_alvo.Caminho);
+        if (!resultado.Ok)
+        {
+            _mensagem = resultado.Mensagem;
+            _erro = true;
+            return;
+        }
+
+        _mensagem = "Backup restaurado com sucesso. Reiniciando...";
+        _erro = false;
+
+        // Release mutex before restart so the new process can acquire it
+        Instancia.Liberar();
+
+        // Restart the process
+        var exePath = Environment.ProcessPath;
+        if (exePath is not null)
+        {
+            System.Diagnostics.Process.Start(exePath);
+        }
+        Application.Current?.Quit();
+    }
+
+    private static string FormatSize(long bytes) => bytes switch
+    {
+        < 1024 => $"{bytes} B",
+        < 1024 * 1024 => $"{bytes / 1024.0:N1} KB",
+        _ => $"{bytes / (1024.0 * 1024.0):N1} MB"
+    };
+}

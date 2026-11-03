@@ -1,0 +1,58 @@
+@page "/"
+@inject VendaService Vendas
+@inject ResumoRepository Resumo
+
+<div class="page-header">
+    <h1>Início</h1>
+    <p>Resumo do dia e acesso rápido</p>
+</div>
+
+<div class="page-body">
+    <div class="summary-grid">
+        <div class="summary-card">
+            <div class="label">Vendas de hoje</div>
+            <div class="value">@_resumo.VendasRealizadas</div>
+        </div>
+        <div class="summary-card">
+            <div class="label">Quantidade vendida</div>
+            <div class="value">@Fmt.Kg(_resumo.QuantidadeGramas)</div>
+        </div>
+        <div class="summary-card">
+            <div class="label">Valor vendido</div>
+            <div class="value green">@Fmt.Money(_resumo.ValorVendidoCentavos)</div>
+        </div>
+        <div class="summary-card">
+            <div class="label">Recebimentos de hoje</div>
+            <div class="value green">@Fmt.Money(_resumo.RecebimentosCentavos)</div>
+        </div>
+        <div class="summary-card">
+            <div class="label">Saldo em aberto</div>
+            <div class="value">@Fmt.Money(_saldoAberto)</div>
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="card-header">Acesso rápido</div>
+        <div class="card-body">
+            <div class="btn-group">
+                <a class="btn btn-primary" href="venda">Nova venda</a>
+                <a class="btn btn-primary" href="pagamento">Registrar pagamento</a>
+                <a class="btn btn-secondary" href="pendencias">Ver pendências</a>
+                <button class="btn btn-secondary" @onclick="Refresh">Atualizar resumo</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+@code {
+    private ResumoDiario _resumo = new(0, 0, 0, 0, 0);
+    private long _saldoAberto;
+
+    protected override void OnInitialized() => Refresh();
+
+    private void Refresh()
+    {
+        _resumo = Resumo.Obter(DateOnly.FromDateTime(DateTime.Today));
+        _saldoAberto = Vendas.Listar(somentePendentes: true).Sum(v => v.SaldoCentavos);
+    }
+}

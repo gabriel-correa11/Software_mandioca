@@ -65,6 +65,11 @@ public sealed class BackupService
 
     public ResultadoRestauracao Restaurar(string caminhoBackup)
     {
+        var caminhoCompleto = Path.GetFullPath(caminhoBackup);
+        var diretorioCompleto = Path.GetFullPath(_diretorioBackups) + Path.DirectorySeparatorChar;
+        if (!caminhoCompleto.StartsWith(diretorioCompleto, StringComparison.OrdinalIgnoreCase))
+            return ResultadoRestauracao.Falha("Caminho de backup inválido.");
+
         if (!File.Exists(caminhoBackup))
             return ResultadoRestauracao.Falha("O arquivo de backup não foi encontrado.");
 
@@ -99,6 +104,13 @@ public sealed class BackupService
                 "O backup selecionado está corrompido ou com dados inconsistentes e não pode ser restaurado.");
         }
 
+        if (!InicializadorBanco.VerificarHmacBackup(caminhoBackup, _diretorioBackups))
+        {
+            _logger.Warning("Backup falhou na verificação HMAC: {Path}", caminhoBackup);
+            return ResultadoRestauracao.Falha(
+                "O arquivo de backup foi alterado ou corrompido. A restauração foi recusada por segurança.");
+        }
+
         string? seguranca = null;
         if (File.Exists(_caminhoBanco))
         {
@@ -115,15 +127,46 @@ public sealed class BackupService
             }
         }
 
+        BancoSqlite.LiberarConexoes(_caminhoBanco);
+
+        var dir = Path.GetDirectoryName(_caminhoBanco)!;
+        var temp = Path.Combine(dir, $"restore-{Guid.NewGuid():N}.sqlite");
+        var antigo = _caminhoBanco + ".old";
+
         try
         {
-            File.Copy(caminhoBackup, _caminhoBanco, overwrite: true);
+            File.Copy(caminhoBackup, temp);
+
+            if (File.Exists(antigo))
+                File.Delete(antigo);
+
+            if (File.Exists(_caminhoBanco))
+                File.Move(_caminhoBanco, antigo);
+
+            File.Move(temp, _caminhoBanco);
+
+            try { if (File.Exists(antigo)) File.Delete(antigo); }
+            catch { /* best effort */ }
+
             _logger.Information("Banco restaurado a partir do backup. Reinicialização necessária");
             return ResultadoRestauracao.Sucesso(seguranca);
         }
         catch (Exception ex)
         {
-            _logger.Error(ex, "Falha ao copiar o backup sobre o banco principal");
+            _logger.Error(ex, "Falha ao substituir o banco principal pelo backup");
+
+            if (!File.Exists(_caminhoBanco) && File.Exists(antigo))
+            {
+                try { File.Move(antigo, _caminhoBanco); }
+                catch (Exception rollbackEx)
+                {
+                    _logger.Error(rollbackEx, "Falha ao restaurar o banco original após erro");
+                }
+            }
+
+            try { if (File.Exists(temp)) File.Delete(temp); }
+            catch { /* best effort */ }
+
             return ResultadoRestauracao.Falha(
                 "Não foi possível substituir o banco. Seus dados originais permanecem intactos"
                 + (seguranca is not null ? $" e uma cópia de segurança foi preservada em:\n{seguranca}" : "."));
@@ -148,6 +191,8 @@ public sealed class BackupService
                 if (info.CreationTimeUtc < limite)
                 {
                     info.Delete();
+                    try { var hmac = new FileInfo(arquivo + ".hmac"); if (hmac.Exists) hmac.Delete(); }
+                    catch { /* melhor esforço */ }
                     _logger.Information("Backup automático antigo removido: {FileName}", info.Name);
                 }
             }

@@ -28,4 +28,20 @@ public sealed class BancoSqlite(string caminhoBanco)
         command.ExecuteNonQuery();
         return connection;
     }
+
+    public static void LiberarConexoes(string caminhoBanco)
+    {
+        SqliteConnection.ClearAllPools();
+        GC.Collect();
+        GC.WaitForPendingFinalizers();
+        RemoverArquivoAuxiliar(caminhoBanco + "-wal");
+        RemoverArquivoAuxiliar(caminhoBanco + "-shm");
+    }
+
+    private static void RemoverArquivoAuxiliar(string caminho)
+    {
+        try { if (File.Exists(caminho)) File.Delete(caminho); }
+        catch (IOException) { }
+        catch (UnauthorizedAccessException) { }
+    }
 }

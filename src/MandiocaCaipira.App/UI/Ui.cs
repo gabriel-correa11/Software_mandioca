@@ -22,7 +22,7 @@ internal static class Ui
     public static readonly Color LightGreen = Color.FromArgb(235, 244, 238);
     public static readonly Color Danger = Color.FromArgb(158, 54, 48);
 
-    public static TabPage Page(string title) => new(title) { BackColor = SystemColors.Control, Padding = new Padding(4) };
+    public static TabPage Page(string title) => new(title) { BackColor = SystemColors.Control, Padding = Padding.Empty };
     public static Label Caption(string text) => new() { Text = text, AutoSize = true, ForeColor = Text, Padding = new Padding(2, 7, 2, 0) };
     public static Label Value(string text, float size = 17) => new() { Text = text, AutoSize = false, Height = 36, Font = new Font("Segoe UI Semibold", size), ForeColor = Text, TextAlign = ContentAlignment.MiddleLeft };
     public static ComboBox Combo() => new() { Width = 300, Height = 28, DropDownStyle = ComboBoxStyle.DropDownList, IntegralHeight = false, DropDownHeight = 240, Font = Font };
@@ -73,7 +73,7 @@ internal static class Ui
     public static void Field(TableLayoutPanel form, string label, Control control, int row) { var l = Caption(label); l.Anchor = AnchorStyles.Left; control.Anchor = AnchorStyles.Left | AnchorStyles.Right; form.Controls.Add(l, 0, row); form.Controls.Add(control, 1, row); }
     public static Panel Labeled(string label, Control control)
     {
-        var panel = new Panel { Dock = DockStyle.Fill, Margin = new Padding(0, 0, 16, 8), Padding = new Padding(0, 22, 0, 0) };
+        var panel = new Panel { Dock = DockStyle.Fill, Margin = new Padding(0, 0, 16, 8) };
         control.Dock = DockStyle.Top;
         panel.Controls.Add(control);
         panel.Controls.Add(new Label { Text = label, Dock = DockStyle.Top, Height = 22, ForeColor = Text, Font = Font });

@@ -1,5 +1,6 @@
 using System.Globalization;
 using System.Reflection;
+using System.Security.Cryptography;
 using Microsoft.Data.Sqlite;
 using Serilog;
 
@@ -11,7 +12,7 @@ public sealed class InicializadorBanco
     private readonly string _diretorioBackups;
     private readonly ILogger _logger;
 
-    private static readonly string[] ObjetosObrigatorios =
+    private static readonly string[] ObjetosV1 =
     [
         "Cliente", "Venda", "Pagamento", "AlocacaoPagamento",
         "TR_Alocacao_Validar", "TR_Alocacao_Imutavel", "TR_Alocacao_SemExclusao",
@@ -20,9 +21,18 @@ public sealed class InicializadorBanco
         "TR_Cliente_SemExclusao", "TR_Venda_ClienteAtivo", "TR_Pagamento_ClienteAtivo"
     ];
 
+    private static readonly string[] ObjetosObrigatorios =
+    [
+        .. ObjetosV1,
+        "Fornecedor", "ConfiguracaoRendimento", "CompraMandioca",
+        "TR_Compra_FornecedorAtivo", "TR_Compra_Imutavel", "TR_Compra_SemExclusao",
+        "TR_Fornecedor_SemExclusao", "TR_ConfigRendimento_SemExclusao"
+    ];
+
     private static readonly IReadOnlyList<MigracaoSchema> Migracoes =
     [
         new(0, 1, AplicarV1),
+        new(1, 2, AplicarV2),
     ];
 
     public static int VersaoAtual => Migracoes[^1].VersaoDestino;
@@ -65,12 +75,13 @@ public sealed class InicializadorBanco
                     {
                         _logger.Information("Banco legado detectado com schema v1 sem user_version; reconhecendo como v1");
                         MarcarVersao(connection, 1);
-                        ValidarBanco(connection);
-                        return;
+                        version = 1;
                     }
-
-                    throw new InvalidOperationException(
-                        "Banco sem versão com tabelas existentes; migração automática recusada.");
+                    else
+                    {
+                        throw new InvalidOperationException(
+                            "Banco sem versão com tabelas existentes; migração automática recusada.");
+                    }
                 }
             }
 
@@ -99,7 +110,7 @@ public sealed class InicializadorBanco
     }
 
     public string CriarBackupAntesDeMigrar() =>
-        CriarBackupInterno("migracao", "Backup SQLite criado antes da migração");
+        CriarBackupInterno("migracao", "Backup SQLite criado antes da migração", validarSchema: false);
 
     public string CriarBackupAgora() =>
         CriarBackupInterno("manual", "Backup SQLite manual criado e validado");
@@ -107,17 +118,23 @@ public sealed class InicializadorBanco
     public string CriarBackupAutomatico() =>
         CriarBackupInterno("auto", "Backup SQLite automático criado e validado");
 
-    internal string CriarBackupInterno(string categoria, string mensagemLog)
+    internal string CriarBackupInterno(string categoria, string mensagemLog, bool validarSchema = true)
     {
         try
         {
             Directory.CreateDirectory(_diretorioBackups);
             var name = $"mandioca-{categoria}-{DateTimeOffset.UtcNow.ToString("yyyyMMdd-HHmmss-fffffff", CultureInfo.InvariantCulture)}.sqlite";
             var path = Path.Combine(_diretorioBackups, name);
-            using var source = _banco.AbrirConexao();
-            using var target = new BancoSqlite(path).AbrirConexao();
-            source.BackupDatabase(target);
-            ValidarBanco(target);
+            using (var source = _banco.AbrirConexao())
+            using (var target = new BancoSqlite(path).AbrirConexao())
+            {
+                source.BackupDatabase(target);
+                if (validarSchema)
+                    ValidarBanco(target);
+                else
+                    ValidarIntegridade(target);
+            }
+            GravarHmacBackup(path, _diretorioBackups);
             _logger.Information("{BackupResult}", mensagemLog);
             return path;
         }
@@ -140,6 +157,51 @@ public sealed class InicializadorBanco
         var banco = new BancoSqlite(caminho);
         using var connection = banco.AbrirConexao();
         return (int)Versao(connection);
+    }
+
+    internal static void GravarHmacBackup(string caminhoBackup, string diretorioBackups)
+    {
+        try
+        {
+            var chave = ObterOuCriarChaveIntegridade(diretorioBackups);
+            using var hmac = new HMACSHA256(chave);
+            using var stream = File.OpenRead(caminhoBackup);
+            var hash = hmac.ComputeHash(stream);
+            File.WriteAllText(caminhoBackup + ".hmac", Convert.ToHexString(hash));
+        }
+        catch { /* melhor esforço — não falhar a criação do backup */ }
+    }
+
+    internal static bool VerificarHmacBackup(string caminhoBackup, string diretorioBackups)
+    {
+        var caminhoHmac = caminhoBackup + ".hmac";
+        if (!File.Exists(caminhoHmac))
+            return true; // Backup legado sem HMAC
+
+        try
+        {
+            var chave = ObterOuCriarChaveIntegridade(diretorioBackups);
+            using var hmac = new HMACSHA256(chave);
+            using var stream = File.OpenRead(caminhoBackup);
+            var hash = hmac.ComputeHash(stream);
+            var esperado = File.ReadAllText(caminhoHmac).Trim();
+            return string.Equals(Convert.ToHexString(hash), esperado, StringComparison.OrdinalIgnoreCase);
+        }
+        catch { return false; }
+    }
+
+    private static byte[] ObterOuCriarChaveIntegridade(string diretorioBackups)
+    {
+        var caminho = Path.Combine(diretorioBackups, ".chave-integridade");
+        if (File.Exists(caminho))
+            return File.ReadAllBytes(caminho);
+
+        var chave = RandomNumberGenerator.GetBytes(32);
+        Directory.CreateDirectory(diretorioBackups);
+        File.WriteAllBytes(caminho, chave);
+        try { File.SetAttributes(caminho, File.GetAttributes(caminho) | FileAttributes.Hidden); }
+        catch { /* melhor esforço */ }
+        return chave;
     }
 
     private static void ExecutarMigracao(SqliteConnection connection, MigracaoSchema migracao)
@@ -169,6 +231,14 @@ public sealed class InicializadorBanco
         sql.ExecuteNonQuery();
     }
 
+    private static void AplicarV2(SqliteConnection connection, SqliteTransaction transaction)
+    {
+        using var sql = connection.CreateCommand();
+        sql.Transaction = transaction;
+        sql.CommandText = LerScriptEmbutido("MandiocaCaipira.App.Data.Migrations.002_CompraMandioca.sql");
+        sql.ExecuteNonQuery();
+    }
+
     private static long Versao(SqliteConnection connection)
     {
         using var command = connection.CreateCommand();
@@ -187,13 +257,13 @@ public sealed class InicializadorBanco
     {
         using var schema = connection.CreateCommand();
         schema.CommandText = "SELECT COUNT(*) FROM sqlite_schema WHERE name IN (" +
-            string.Join(",", ObjetosObrigatorios.Select((_, index) => $"$name{index}")) + ");";
-        for (var index = 0; index < ObjetosObrigatorios.Length; index++)
-            schema.Parameters.AddWithValue($"$name{index}", ObjetosObrigatorios[index]);
-        return (long)schema.ExecuteScalar()! == ObjetosObrigatorios.Length;
+            string.Join(",", ObjetosV1.Select((_, index) => $"$name{index}")) + ");";
+        for (var index = 0; index < ObjetosV1.Length; index++)
+            schema.Parameters.AddWithValue($"$name{index}", ObjetosV1[index]);
+        return (long)schema.ExecuteScalar()! == ObjetosV1.Length;
     }
 
-    internal static void ValidarBanco(SqliteConnection connection)
+    private static void ValidarIntegridade(SqliteConnection connection)
     {
         using (var integrity = connection.CreateCommand())
         {
@@ -208,6 +278,11 @@ public sealed class InicializadorBanco
             if ((long)foreignKeys.ExecuteScalar()! != 0)
                 throw new InvalidDataException("O banco de dados contém referências inválidas.");
         }
+    }
+
+    internal static void ValidarBanco(SqliteConnection connection)
+    {
+        ValidarIntegridade(connection);
 
         using var check = connection.CreateCommand();
         check.CommandText = "SELECT COUNT(*) FROM sqlite_schema WHERE name IN (" +

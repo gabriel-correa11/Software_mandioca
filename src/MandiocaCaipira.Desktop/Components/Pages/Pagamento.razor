@@ -1,0 +1,184 @@
+@page "/pagamento"
+@inject ClienteService Clientes
+@inject VendaService Vendas
+@inject PagamentoService Pagamentos
+
+<div class="page-header">
+    <h1>Registrar pagamento</h1>
+    <p>Informe o valor recebido e distribua entre as vendas em aberto</p>
+</div>
+
+<div class="page-body">
+    @if (_mensagem is not null)
+    {
+        <div class="alert @(_erro ? "alert-error" : "alert-success")">@_mensagem</div>
+    }
+
+    <div class="card" style="margin-bottom:16px">
+        <div class="card-body">
+            <div class="form-row">
+                <div class="form-group" style="grid-column:span 2">
+                    <label>Cliente</label>
+                    <select class="form-select" @bind="_clienteId" @bind:after="CarregarVendas">
+                        <option value="0">Selecione...</option>
+                        @foreach (var c in _clientes)
+                        {
+                            <option value="@c.Id">@c.Nome</option>
+                        }
+                    </select>
+                </div>
+            </div>
+            <div class="form-row">
+                <div class="form-group">
+                    <label>Valor recebido (R$)</label>
+                    <input class="form-input" type="number" step="0.01" min="0.01"
+                           @bind="_valor" @bind:event="oninput" @bind:after="RecalcularMetricas" />
+                </div>
+                <div class="form-group">
+                    <label>Data do recebimento</label>
+                    <input class="form-input" type="date" @bind="_data" />
+                </div>
+            </div>
+
+            <div style="display:flex;gap:14px;margin-top:8px">
+                <div class="metric-box" style="flex:1">
+                    <div class="label">Dívida atual</div>
+                    <div class="value">@Fmt.Money(_divida)</div>
+                </div>
+                <div class="metric-box" style="flex:1">
+                    <div class="label">Crédito restante</div>
+                    <div class="value" style="@(_credito < 0 ? "color:var(--red-600)" : "")">
+                        @Fmt.Money(_credito)
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="card-header" style="display:flex;justify-content:space-between;align-items:center">
+            <span>Vendas em aberto</span>
+            <div class="btn-group">
+                <button class="btn btn-secondary btn-sm" @onclick="Distribuir">Distribuir automaticamente</button>
+                <button class="btn btn-primary btn-sm" @onclick="Confirmar">Confirmar pagamento</button>
+            </div>
+        </div>
+        <div class="table-wrapper">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Data</th>
+                        <th class="text-right">Valor original</th>
+                        <th class="text-right">Já recebido</th>
+                        <th class="text-right">Saldo</th>
+                        <th class="text-right">Aplicar neste pagamento</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var item in _linhas)
+                    {
+                        <tr>
+                            <td>@item.Venda.DataOperacao.ToString("d", Fmt.PtBr)</td>
+                            <td class="text-right">@Fmt.Money(item.Venda.TotalCentavos)</td>
+                            <td class="text-right">@Fmt.Money(item.Venda.RecebidoCentavos)</td>
+                            <td class="text-right">@Fmt.Money(item.Venda.SaldoCentavos)</td>
+                            <td class="text-right" style="width:180px">
+                                <input class="form-input" type="number" step="0.01" min="0"
+                                       style="text-align:right;width:150px;display:inline-block"
+                                       @bind="item.AplicarReais" @bind:event="oninput"
+                                       @bind:after="RecalcularMetricas" />
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+            @if (_linhas.Count == 0 && _clienteId > 0)
+            {
+                <div class="empty-state">Nenhuma venda em aberto para este cliente.</div>
+            }
+        </div>
+    </div>
+</div>
+
+@code {
+    private IReadOnlyList<Cliente> _clientes = [];
+    private long _clienteId;
+    private decimal _valor;
+    private DateTime _data = DateTime.Today;
+    private List<LinhaDistribuicao> _linhas = [];
+    private long _divida;
+    private long _credito;
+    private string? _mensagem;
+    private bool _erro;
+
+    protected override void OnInitialized()
+    {
+        _clientes = Clientes.Listar();
+    }
+
+    private void CarregarVendas()
+    {
+        _linhas = _clienteId > 0
+            ? Vendas.Listar(_clienteId, somentePendentes: true)
+                .Select(v => new LinhaDistribuicao(v)).ToList()
+            : [];
+        RecalcularMetricas();
+    }
+
+    private void RecalcularMetricas()
+    {
+        _divida = _linhas.Sum(l => l.Venda.SaldoCentavos);
+        var totalAplicado = _linhas.Sum(l => l.AplicarCentavos);
+        _credito = ToCents(_valor) - totalAplicado;
+    }
+
+    private void Distribuir()
+    {
+        var rest = ToCents(_valor);
+        foreach (var linha in _linhas.OrderBy(l => l.Venda.DataOperacao))
+        {
+            var aplicar = Math.Min(rest, linha.Venda.SaldoCentavos);
+            linha.AplicarCentavos = aplicar;
+            rest -= aplicar;
+        }
+        RecalcularMetricas();
+    }
+
+    private void Confirmar()
+    {
+        _mensagem = null;
+        try
+        {
+            var alocacoes = _linhas
+                .Where(l => l.AplicarCentavos > 0)
+                .Select(l => new AlocacaoSolicitada(l.Venda.Id, l.AplicarCentavos))
+                .ToList();
+            Pagamentos.Registrar(_clienteId, ToCents(_valor),
+                DateOnly.FromDateTime(_data), alocacoes);
+            _mensagem = "Pagamento registrado com sucesso.";
+            _erro = false;
+            _valor = 0;
+            CarregarVendas();
+            _clientes = Clientes.Listar();
+        }
+        catch (Exception ex)
+        {
+            _mensagem = ex.Message;
+            _erro = true;
+        }
+    }
+
+    private static long ToCents(decimal value) =>
+        checked((long)decimal.Round(value * 100m, 0, MidpointRounding.AwayFromZero));
+
+    private sealed class LinhaDistribuicao(VendaResumo venda)
+    {
+        public VendaResumo Venda => venda;
+        public long AplicarCentavos { get; set; }
+        public decimal AplicarReais
+        {
+            get => AplicarCentavos / 100m;
+            set => AplicarCentavos = ToCents(value);
+        }
+    }
+}

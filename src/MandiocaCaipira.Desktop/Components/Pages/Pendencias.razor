@@ -1,0 +1,69 @@
+@page "/pendencias"
+@inject VendaService Vendas
+@inject NavigationManager Nav
+
+<div class="page-header">
+    <h1>Pendências</h1>
+    <p>Vendas com saldo em aberto</p>
+</div>
+
+<div class="page-body">
+    <div class="toolbar">
+        <button class="btn btn-primary" @onclick="PagarSelecionada" disabled="@(_selecionada is null)">
+            Registrar pagamento
+        </button>
+        <button class="btn btn-secondary" @onclick="Refresh">Atualizar</button>
+    </div>
+
+    <div class="card">
+        <div class="table-wrapper">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Cliente</th>
+                        <th class="text-center">Data</th>
+                        <th class="text-right">Valor original</th>
+                        <th class="text-right">Recebido</th>
+                        <th class="text-right">Saldo</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var v in _vendas)
+                    {
+                        <tr class="@(v == _selecionada ? "selected" : "")"
+                            @onclick="() => _selecionada = v">
+                            <td>@v.Cliente</td>
+                            <td class="text-center">@v.DataOperacao.ToString("d", Fmt.PtBr)</td>
+                            <td class="text-right">@Fmt.Money(v.TotalCentavos)</td>
+                            <td class="text-right">@Fmt.Money(v.RecebidoCentavos)</td>
+                            <td class="text-right text-red">@Fmt.Money(v.SaldoCentavos)</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+            @if (_vendas.Count == 0)
+            {
+                <div class="empty-state">Nenhuma pendência encontrada.</div>
+            }
+        </div>
+    </div>
+</div>
+
+@code {
+    private IReadOnlyList<VendaResumo> _vendas = [];
+    private VendaResumo? _selecionada;
+
+    protected override void OnInitialized() => Refresh();
+
+    private void Refresh()
+    {
+        _vendas = Vendas.Listar(somentePendentes: true);
+        _selecionada = null;
+    }
+
+    private void PagarSelecionada()
+    {
+        if (_selecionada is not null)
+            Nav.NavigateTo($"pagamento");
+    }
+}

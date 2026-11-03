@@ -33,3 +33,9 @@ dotnet-install.ps1
 /historical-data/
 /exports/
 /receipts/
+
+# Build artifacts and tools
+artifacts/
+Backup/
+UpgradeLog.htm
+.claude/

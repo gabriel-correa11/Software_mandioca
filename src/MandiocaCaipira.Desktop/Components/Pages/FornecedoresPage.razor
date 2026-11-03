@@ -1,0 +1,153 @@
+@page "/fornecedores"
+@inject FornecedorRepository FornecedorRepo
+
+<div class="page-header">
+    <h1>Fornecedores</h1>
+    <button class="btn btn-primary" @onclick="() => _cadastrando = true">Novo fornecedor</button>
+</div>
+
+<div class="page-body">
+    @if (_mensagem is not null)
+    {
+        <div class="alert @(_erro ? "alert-error" : "alert-success")">@_mensagem</div>
+    }
+
+    <div class="toolbar">
+        <label style="display:flex;align-items:center;gap:6px;font-size:13px">
+            <input type="checkbox" @bind="_mostrarInativos" @bind:after="Recarregar" /> Mostrar inativos
+        </label>
+    </div>
+
+    <div class="card">
+        <div class="table-wrapper">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Nome</th>
+                        <th>Apelido</th>
+                        <th>Telefone</th>
+                        <th>Status</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var f in _lista)
+                    {
+                        <tr class="@(f.Ativo ? "" : "text-muted")">
+                            <td>@f.Nome</td>
+                            <td>@(f.Apelido ?? "-")</td>
+                            <td>@(f.Telefone ?? "-")</td>
+                            <td>
+                                @if (f.Ativo)
+                                {
+                                    <span class="badge badge-green">Ativo</span>
+                                }
+                                else
+                                {
+                                    <span class="badge badge-gray">Inativo</span>
+                                }
+                            </td>
+                            <td>
+                                <button class="btn btn-secondary btn-sm"
+                                        @onclick="() => AlternarAtivo(f.Id)">
+                                    @(f.Ativo ? "Desativar" : "Ativar")
+                                </button>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+            @if (_lista.Count == 0)
+            {
+                <div class="empty-state">Nenhum fornecedor cadastrado.</div>
+            }
+        </div>
+    </div>
+</div>
+
+@if (_cadastrando)
+{
+    <div style="position:fixed;inset:0;background:rgba(0,0,0,0.3);display:flex;align-items:center;justify-content:center;z-index:100">
+        <div class="card" style="width:420px">
+            <div class="card-header">Novo fornecedor</div>
+            <div class="card-body">
+                <div class="form-group">
+                    <label>Nome</label>
+                    <input type="text" @bind="_nome" class="form-control" />
+                </div>
+                <div class="form-group">
+                    <label>Apelido <span class="text-muted text-sm">(opcional)</span></label>
+                    <input type="text" @bind="_apelido" class="form-control" />
+                </div>
+                <div class="form-group">
+                    <label>Telefone <span class="text-muted text-sm">(opcional)</span></label>
+                    <input type="text" @bind="_telefone" class="form-control" />
+                </div>
+                <div class="btn-group" style="justify-content:flex-end;margin-top:14px">
+                    <button class="btn btn-secondary" @onclick="() => _cadastrando = false">Cancelar</button>
+                    <button class="btn btn-primary" @onclick="Cadastrar">Cadastrar</button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private IReadOnlyList<Fornecedor> _lista = [];
+    private bool _mostrarInativos;
+    private bool _cadastrando;
+    private string _nome = "";
+    private string? _apelido;
+    private string? _telefone;
+    private string? _mensagem;
+    private bool _erro;
+
+    protected override void OnInitialized() => Recarregar();
+
+    private void Recarregar()
+    {
+        _lista = FornecedorRepo.Listar(somenteAtivos: !_mostrarInativos);
+    }
+
+    private void Cadastrar()
+    {
+        _mensagem = null;
+        try
+        {
+            var nome = _nome.Trim();
+            if (nome.Length == 0) throw new ArgumentException("Informe o nome do fornecedor.");
+            if (nome.Length > 200) throw new ArgumentException("Nome muito longo (máximo 200 caracteres).");
+            var apelido = _apelido?.Trim();
+            if (apelido is not null && apelido.Length > 100) throw new ArgumentException("Apelido muito longo (máximo 100 caracteres).");
+            var telefone = _telefone?.Trim();
+            if (telefone is not null && telefone.Length > 30) throw new ArgumentException("Telefone muito longo (máximo 30 caracteres).");
+            FornecedorRepo.Inserir(nome, apelido, telefone);
+            _cadastrando = false;
+            _nome = "";
+            _apelido = null;
+            _telefone = null;
+            _mensagem = "Fornecedor cadastrado.";
+            _erro = false;
+            Recarregar();
+        }
+        catch (Exception ex)
+        {
+            _mensagem = ex.Message;
+            _erro = true;
+        }
+    }
+
+    private void AlternarAtivo(long id)
+    {
+        try
+        {
+            FornecedorRepo.AlternarAtivo(id);
+            Recarregar();
+        }
+        catch (Exception ex)
+        {
+            _mensagem = ex.Message;
+            _erro = true;
+        }
+    }
+}

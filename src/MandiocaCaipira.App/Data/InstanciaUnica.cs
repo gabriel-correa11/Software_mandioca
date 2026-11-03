@@ -7,6 +7,7 @@ public sealed class InstanciaUnica : IDisposable
     private readonly bool _acquired;
 
     public bool IsOwner => _acquired;
+    private bool _released;
 
     public InstanciaUnica()
     {
@@ -21,13 +22,19 @@ public sealed class InstanciaUnica : IDisposable
         }
     }
 
-    public void Dispose()
+    public void Liberar()
     {
-        if (_acquired)
+        if (_acquired && !_released)
         {
+            _released = true;
             try { _mutex.ReleaseMutex(); }
             catch (ObjectDisposedException) { }
         }
+    }
+
+    public void Dispose()
+    {
+        Liberar();
         _mutex.Dispose();
     }
 }

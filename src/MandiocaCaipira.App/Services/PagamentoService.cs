@@ -56,6 +56,7 @@ public sealed class PagamentoService(
     {
         motivo = motivo.Trim();
         if (motivo.Length < 3) throw new ArgumentException("Informe o motivo do estorno.");
+        if (motivo.Length > 500) throw new ArgumentException("Motivo muito longo (máximo 500 caracteres).");
         pagamentos.Estornar(pagamentoId, motivo, DateTimeOffset.UtcNow);
     }
 }

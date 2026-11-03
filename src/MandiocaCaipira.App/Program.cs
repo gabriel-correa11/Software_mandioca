@@ -54,7 +54,7 @@ static class Program
             var pagamentos = new PagamentoService(banco, pagamentosRepo, vendasRepo);
             var recibos = new ReciboService(vendasRepo, pagamentosRepo, CaminhosDados.Recibos);
             Application.Run(new MainForm(clientes, vendas, pagamentos,
-                new ResumoRepository(banco), recibos, backup, importacaoClientes));
+                new ResumoRepository(banco), recibos, backup, importacaoClientes, instancia));
         }
         catch (Exception ex)
         {

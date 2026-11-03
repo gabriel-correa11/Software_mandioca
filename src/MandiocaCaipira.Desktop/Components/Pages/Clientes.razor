@@ -1,0 +1,152 @@
+@page "/clientes"
+@inject ClienteService ClienteSvc
+
+<div class="page-header">
+    <h1>Clientes</h1>
+    <p>Cadastro e gerenciamento de clientes</p>
+</div>
+
+<div class="page-body">
+    <div class="toolbar">
+        <input class="search-input" type="text" placeholder="Pesquisar por nome..."
+               @bind="_pesquisa" @bind:event="oninput" @bind:after="Refresh" />
+        <label class="checkbox-label">
+            <input type="checkbox" @bind="_incluirInativos" @bind:after="Refresh" />
+            Incluir inativos
+        </label>
+        <div class="spacer"></div>
+        <button class="btn btn-primary" @onclick="Cadastrar">Cadastrar cliente</button>
+        <a class="btn btn-secondary" href="importar-clientes">Importar clientes</a>
+        <button class="btn btn-secondary" @onclick="ToggleAtivo" disabled="@(_selecionado is null)">
+            @(_selecionado?.Ativo == true ? "Inativar" : "Reativar")
+        </button>
+    </div>
+
+    @if (_mensagem is not null)
+    {
+        <div class="alert @(_erro ? "alert-error" : "alert-success")">@_mensagem</div>
+    }
+
+    <div class="card">
+        <div class="table-wrapper">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Nome</th>
+                        <th class="text-center">Situação</th>
+                        <th class="text-center">Cadastrado em</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var c in _clientes)
+                    {
+                        <tr class="@(c == _selecionado ? "selected" : "")"
+                            @onclick="() => _selecionado = c">
+                            <td>@c.Nome</td>
+                            <td class="text-center">
+                                <span class="badge @(c.Ativo ? "badge-green" : "badge-gray")">
+                                    @(c.Ativo ? "Ativo" : "Inativo")
+                                </span>
+                            </td>
+                            <td class="text-center text-muted text-sm">
+                                @c.CriadoEm.LocalDateTime.ToString("g", Fmt.PtBr)
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+            @if (_clientes.Count == 0)
+            {
+                <div class="empty-state">Nenhum cliente encontrado.</div>
+            }
+        </div>
+    </div>
+</div>
+
+@code {
+    private IReadOnlyList<Cliente> _clientes = [];
+    private string? _pesquisa;
+    private bool _incluirInativos;
+    private Cliente? _selecionado;
+    private string? _mensagem;
+    private bool _erro;
+
+    protected override void OnInitialized() => Refresh();
+
+    private void Refresh()
+    {
+        _clientes = ClienteSvc.Listar(_pesquisa, _incluirInativos);
+        if (_selecionado is not null && !_clientes.Any(c => c.Id == _selecionado.Id))
+            _selecionado = null;
+    }
+
+    private void Cadastrar()
+    {
+        // Simple prompt via state — will replace with modal later
+        _cadastrando = true;
+    }
+
+    private bool _cadastrando;
+    private string _novoNome = "";
+
+    private void ConfirmarCadastro()
+    {
+        _mensagem = null;
+        try
+        {
+            ClienteSvc.Cadastrar(_novoNome);
+            _mensagem = "Cliente cadastrado com sucesso.";
+            _erro = false;
+            _novoNome = "";
+            _cadastrando = false;
+            Refresh();
+        }
+        catch (Exception ex)
+        {
+            _mensagem = ex.Message;
+            _erro = true;
+        }
+    }
+
+    private void CancelarCadastro()
+    {
+        _cadastrando = false;
+        _novoNome = "";
+    }
+
+    private void ToggleAtivo()
+    {
+        if (_selecionado is null) return;
+        try
+        {
+            ClienteSvc.DefinirAtivo(_selecionado.Id, !_selecionado.Ativo);
+            _mensagem = _selecionado.Ativo ? "Cliente inativado." : "Cliente reativado.";
+            _erro = false;
+            Refresh();
+        }
+        catch (Exception ex)
+        {
+            _mensagem = ex.Message;
+            _erro = true;
+        }
+    }
+}
+
+@if (_cadastrando)
+{
+    <div style="position:fixed;inset:0;background:rgba(0,0,0,0.3);display:flex;align-items:center;justify-content:center;z-index:100">
+        <div class="card" style="width:400px">
+            <div class="card-header">Cadastrar cliente</div>
+            <div class="card-body">
+                <div class="form-group">
+                    <label>Nome do cliente</label>
+                    <input class="form-input" @bind="_novoNome" placeholder="Nome completo" />
+                </div>
+                <div class="btn-group" style="justify-content:flex-end">
+                    <button class="btn btn-secondary" @onclick="CancelarCadastro">Cancelar</button>
+                    <button class="btn btn-primary" @onclick="ConfirmarCadastro">Cadastrar</button>
+                </div>
+            </div>
+        </div>
+    </div>
+}

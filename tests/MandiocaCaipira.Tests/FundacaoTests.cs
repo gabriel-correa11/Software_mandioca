@@ -56,7 +56,7 @@ public sealed class FundacaoTests
         ambiente.Inicializador.Inicializar();
         ambiente.Inicializador.Inicializar();
         using var connection = ambiente.Banco.AbrirConexao();
-        Assert.Equal(1L, Escalar(connection, "PRAGMA user_version;"));
+        Assert.Equal((long)InicializadorBanco.VersaoAtual, Escalar(connection, "PRAGMA user_version;"));
         Assert.Equal(4L, Escalar(connection,
             "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name IN ('Cliente','Venda','Pagamento','AlocacaoPagamento');"));
         Assert.Equal(1L, Escalar(connection, "PRAGMA foreign_keys;"));
@@ -74,7 +74,7 @@ public sealed class FundacaoTests
         var backup = new BancoSqlite(path);
         using var copy = backup.AbrirConexao();
         Assert.Equal(1L, Escalar(copy, "SELECT COUNT(*) FROM Cliente;"));
-        Assert.Equal(1L, Escalar(copy, "PRAGMA user_version;"));
+        Assert.Equal((long)InicializadorBanco.VersaoAtual, Escalar(copy, "PRAGMA user_version;"));
     }
 
     [Fact]
@@ -158,7 +158,7 @@ public sealed class FundacaoTests
     {
         using var futuro = new BancoTeste();
         using (var db = futuro.Banco.AbrirConexao())
-            Executar(db, "PRAGMA user_version=2;");
+            Executar(db, "PRAGMA user_version=999;");
         Assert.Throws<InvalidOperationException>(() => futuro.Inicializador.Inicializar());
 
         using var desconhecido = new BancoTeste();

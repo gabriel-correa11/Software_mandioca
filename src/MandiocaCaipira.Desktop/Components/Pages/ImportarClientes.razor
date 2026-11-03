@@ -1,0 +1,184 @@
+@page "/importar-clientes"
+@inject ImportacaoClientesService Importacao
+@inject ClienteService ClienteSvc
+@inject NavigationManager Nav
+
+<div class="page-header">
+    <h1>Importar clientes</h1>
+    <p>Selecione um arquivo (xlsx, csv ou txt) para importar nomes de clientes</p>
+</div>
+
+<div class="page-body">
+    @if (_mensagem is not null)
+    {
+        <div class="alert @(_erro ? "alert-error" : "alert-success")">@_mensagem</div>
+    }
+
+    @if (_candidatos is null)
+    {
+        <div class="card">
+            <div class="card-body" style="text-align:center;padding:40px">
+                <p style="margin-bottom:16px">Selecione o arquivo com os nomes dos clientes.</p>
+                <button class="btn btn-primary" @onclick="SelecionarArquivo" disabled="@_carregando">
+                    @(_carregando ? "Lendo arquivo..." : "Selecionar arquivo")
+                </button>
+            </div>
+        </div>
+    }
+    else
+    {
+        <div class="toolbar">
+            <span class="text-sm text-muted">
+                @_candidatos.Sum(c => c.Ocorrencias) ocorrência(s)
+                &middot; @_candidatos.Count(c => c.Acao == AcaoImportacaoCliente.CriarNovo) novo(s)
+                &middot; @_candidatos.Count(c => c.Acao == AcaoImportacaoCliente.Revisar) para revisar
+            </span>
+            <div class="spacer"></div>
+            <button class="btn btn-secondary" @onclick="Cancelar">Cancelar</button>
+            <button class="btn btn-primary" @onclick="Confirmar"
+                    disabled="@(_candidatos.Any(c => c.Acao == AcaoImportacaoCliente.Revisar))">
+                Confirmar importação
+            </button>
+        </div>
+
+        <div class="card">
+            <div class="table-wrapper">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Encontrado no arquivo</th>
+                            <th class="text-center">Repetições</th>
+                            <th>Nome para cadastro</th>
+                            <th>Situação</th>
+                            <th>Ação</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var c in _candidatos)
+                        {
+                            <tr>
+                                <td class="text-muted text-sm">@c.NomeEncontrado</td>
+                                <td class="text-center">@c.Ocorrencias</td>
+                                <td>
+                                    @if (c.Acao == AcaoImportacaoCliente.CriarNovo)
+                                    {
+                                        <input class="form-input" style="padding:4px 8px;font-size:13px"
+                                               @bind="c.NomeParaCadastro" @bind:event="onchange"
+                                               @bind:after="() => Reavaliar(c)" />
+                                    }
+                                    else
+                                    {
+                                        @c.NomeParaCadastro
+                                    }
+                                </td>
+                                <td>
+                                    <span class="badge @BadgeClass(c)">@c.Situacao</span>
+                                </td>
+                                <td style="width:200px">
+                                    <select class="form-select" style="padding:4px 8px;font-size:13px"
+                                            @bind="c.Acao" @bind:after="StateHasChanged">
+                                        <option value="@AcaoImportacaoCliente.CriarNovo">Criar novo</option>
+                                        <option value="@AcaoImportacaoCliente.UsarExistente">Usar existente</option>
+                                        <option value="@AcaoImportacaoCliente.Ignorar">Ignorar</option>
+                                        <option value="@AcaoImportacaoCliente.Revisar">Revisar</option>
+                                    </select>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    }
+</div>
+
+@code {
+    private IReadOnlyList<CandidatoImportacaoCliente>? _candidatos;
+    private bool _carregando;
+    private string? _mensagem;
+    private bool _erro;
+
+    private async Task SelecionarArquivo()
+    {
+        _mensagem = null;
+        try
+        {
+            var types = new Dictionary<DevicePlatform, IEnumerable<string>>
+            {
+                { DevicePlatform.WinUI, new[] { ".xlsx", ".csv", ".txt" } }
+            };
+            var result = await FilePicker.Default.PickAsync(new PickOptions
+            {
+                PickerTitle = "Selecionar arquivo de clientes",
+                FileTypes = new FilePickerFileType(types)
+            });
+            if (result is null) return;
+
+            _carregando = true;
+            StateHasChanged();
+
+            var candidatos = await Importacao.AnalisarAsync(result.FullPath);
+            if (candidatos.Count == 0)
+            {
+                _mensagem = "Nenhum nome de cliente encontrado no arquivo.";
+                _erro = true;
+                _carregando = false;
+                return;
+            }
+
+            _candidatos = candidatos.ToList();
+            _carregando = false;
+        }
+        catch (Exception ex)
+        {
+            _mensagem = ex is InvalidDataException or NotSupportedException
+                ? ex.Message
+                : "Não foi possível ler o arquivo. Verifique se está íntegro e em formato compatível.";
+            _erro = true;
+            _carregando = false;
+        }
+    }
+
+    private void Reavaliar(CandidatoImportacaoCliente candidato)
+    {
+        try
+        {
+            Importacao.Reavaliar(candidato);
+        }
+        catch (Exception ex)
+        {
+            _mensagem = ex.Message;
+            _erro = true;
+        }
+    }
+
+    private void Confirmar()
+    {
+        _mensagem = null;
+        try
+        {
+            var resultado = Importacao.Confirmar(_candidatos!);
+            _mensagem = $"Importação concluída: {resultado.Encontrados} encontrado(s), {resultado.Criados} criado(s), {resultado.Associados} associado(s), {resultado.Ignorados} ignorado(s).";
+            _erro = false;
+            _candidatos = null;
+        }
+        catch (Exception ex)
+        {
+            _mensagem = ex.Message;
+            _erro = true;
+        }
+    }
+
+    private void Cancelar()
+    {
+        _candidatos = null;
+        _mensagem = null;
+    }
+
+    private static string BadgeClass(CandidatoImportacaoCliente c) => c.Acao switch
+    {
+        AcaoImportacaoCliente.CriarNovo => "badge-green",
+        AcaoImportacaoCliente.Revisar => "badge-red",
+        _ => "badge-gray"
+    };
+}

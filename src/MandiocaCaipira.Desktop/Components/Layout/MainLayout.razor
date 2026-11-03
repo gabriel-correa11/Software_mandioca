@@ -1,0 +1,90 @@
+@inherits LayoutComponentBase
+@inject BackupService Backup
+@inject NavigationManager Nav
+
+<div class="shell">
+    <aside class="sidebar">
+        <div class="sidebar-header">Mandioca Caipira</div>
+        <nav>
+            <NavLink class="nav-item" href="" Match="NavLinkMatch.All">
+                Início
+            </NavLink>
+            <NavLink class="nav-item" href="clientes">
+                Clientes
+            </NavLink>
+            <NavLink class="nav-item" href="venda">
+                Nova venda
+            </NavLink>
+            <NavLink class="nav-item" href="pagamento">
+                Pagamento
+            </NavLink>
+            <NavLink class="nav-item" href="pendencias">
+                Pendências
+            </NavLink>
+            <NavLink class="nav-item" href="historico">
+                Histórico
+            </NavLink>
+
+            <div style="margin:8px 10px 4px;font-size:10px;text-transform:uppercase;color:rgba(255,255,255,0.4);letter-spacing:1px">Compras</div>
+            <NavLink class="nav-item" href="fornecedores">
+                Fornecedores
+            </NavLink>
+            <NavLink class="nav-item" href="nova-compra">
+                Nova compra
+            </NavLink>
+            <NavLink class="nav-item" href="historico-compras">
+                Compras
+            </NavLink>
+        </nav>
+        <div style="padding:8px 10px;border-top:1px solid rgba(255,255,255,0.15)">
+            <button class="nav-item" style="font-size:12.5px" @onclick="CriarBackup">
+                Fazer backup
+            </button>
+            <NavLink class="nav-item" href="restaurar" style="font-size:12.5px">
+                Restaurar backup
+            </NavLink>
+            <NavLink class="nav-item" href="atualizar" style="font-size:12.5px">
+                Atualizar
+            </NavLink>
+        </div>
+        <div class="sidebar-footer">v1.0</div>
+    </aside>
+    <div class="main-content">
+        @Body
+    </div>
+</div>
+
+@if (_backupMsg is not null)
+{
+    <div style="position:fixed;inset:0;background:rgba(0,0,0,0.3);display:flex;align-items:center;justify-content:center;z-index:100">
+        <div class="card" style="width:440px">
+            <div class="card-header">Backup</div>
+            <div class="card-body">
+                <div class="alert @(_backupErro ? "alert-error" : "alert-success")">@_backupMsg</div>
+                <div class="btn-group" style="justify-content:flex-end">
+                    <button class="btn btn-secondary" @onclick="() => _backupMsg = null">Fechar</button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private string? _backupMsg;
+    private bool _backupErro;
+
+    private void CriarBackup()
+    {
+        try
+        {
+            var path = Backup.Criar();
+            _backupMsg = $"Backup criado com sucesso em:\n{path}";
+            _backupErro = false;
+        }
+        catch (Exception ex)
+        {
+            _backupMsg = $"Não foi possível criar o backup: {ex.Message}";
+            _backupErro = true;
+        }
+    }
+}

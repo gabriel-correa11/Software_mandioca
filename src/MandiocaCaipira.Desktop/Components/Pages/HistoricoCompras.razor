@@ -1,0 +1,176 @@
+@page "/historico-compras"
+@inject CompraService CompraSvc
+@inject FornecedorRepository Fornecedores
+
+<div class="page-header">
+    <h1>Histórico de compras</h1>
+</div>
+
+<div class="page-body">
+    @if (_mensagem is not null)
+    {
+        <div class="alert @(_erro ? "alert-error" : "alert-success")">@_mensagem</div>
+    }
+
+    <div class="toolbar">
+        <div class="form-group" style="min-width:160px">
+            <label>Fornecedor</label>
+            <select @bind="_filtroFornecedor" @bind:after="Recarregar" class="form-control">
+                <option value="0">Todos</option>
+                @foreach (var f in _fornecedores)
+                {
+                    <option value="@f.Id">@f.Nome</option>
+                }
+            </select>
+        </div>
+        <div class="form-group">
+            <label>De</label>
+            <input type="date" @bind="_filtroInicio" @bind:after="Recarregar" class="form-control" />
+        </div>
+        <div class="form-group">
+            <label>Até</label>
+            <input type="date" @bind="_filtroFim" @bind:after="Recarregar" class="form-control" />
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="table-wrapper">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Data</th>
+                        <th>Fornecedor</th>
+                        <th class="text-right">Bruto (kg)</th>
+                        <th class="text-right">Cascado (kg)</th>
+                        <th class="text-right">Perda %</th>
+                        <th>Status</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var c in _compras)
+                    {
+                        var rendimento = TentarCalcular(c);
+                        <tr class="@(c.Status == StatusCompra.Cancelada ? "text-muted" : "")">
+                            <td>@c.DataCompra.ToString("dd/MM/yyyy")</td>
+                            <td>@c.Fornecedor</td>
+                            <td class="text-right">@Fmt.Kg(c.PesoBrutoGramas)</td>
+                            <td class="text-right">@Fmt.Kg(c.PesoCascadoGramas)</td>
+                            <td class="text-right @(rendimento?.PerdaAcimaDoPadrao == true ? "text-danger" : "")">
+                                @(rendimento is not null ? rendimento.PerdaPercentual.ToString("P2", Fmt.PtBr) : "-")
+                            </td>
+                            <td>
+                                @switch (c.Status)
+                                {
+                                    case StatusCompra.Pendente:
+                                        <span class="badge badge-yellow">Pendente</span>
+                                        break;
+                                    case StatusCompra.Paga:
+                                        <span class="badge badge-green">Paga</span>
+                                        break;
+                                    case StatusCompra.Cancelada:
+                                        <span class="badge badge-gray">Cancelada</span>
+                                        break;
+                                }
+                            </td>
+                            <td>
+                                @if (c.Status != StatusCompra.Cancelada)
+                                {
+                                    <button class="btn btn-danger btn-sm" @onclick="() => IniciarCancelamento(c)">Cancelar</button>
+                                }
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+            @if (_compras.Count == 0)
+            {
+                <div class="empty-state">Nenhuma compra encontrada.</div>
+            }
+        </div>
+    </div>
+</div>
+
+@if (_cancelando)
+{
+    <div style="position:fixed;inset:0;background:rgba(0,0,0,0.3);display:flex;align-items:center;justify-content:center;z-index:100">
+        <div class="card" style="width:480px">
+            <div class="card-header">Cancelar compra</div>
+            <div class="card-body">
+                <p style="margin-bottom:14px">
+                    Compra de <strong>@Fmt.Kg(_alvo!.PesoBrutoGramas)</strong> bruto
+                    em @_alvo.DataCompra.ToString("dd/MM/yyyy") — @_alvo.Fornecedor
+                </p>
+                <div class="form-group">
+                    <label>Motivo do cancelamento</label>
+                    <input type="text" @bind="_motivoCancelamento" class="form-control" placeholder="Informe o motivo..." />
+                </div>
+                <div class="btn-group" style="justify-content:flex-end;margin-top:14px">
+                    <button class="btn btn-secondary" @onclick="() => _cancelando = false">Voltar</button>
+                    <button class="btn btn-danger" @onclick="ConfirmarCancelamento">Confirmar cancelamento</button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private IReadOnlyList<Fornecedor> _fornecedores = [];
+    private IReadOnlyList<CompraResumo> _compras = [];
+    private long _filtroFornecedor;
+    private DateOnly? _filtroInicio;
+    private DateOnly? _filtroFim;
+    private string? _mensagem;
+    private bool _erro;
+    private bool _cancelando;
+    private CompraResumo? _alvo;
+    private string _motivoCancelamento = "";
+
+    protected override void OnInitialized()
+    {
+        _fornecedores = Fornecedores.Listar(somenteAtivos: false);
+        Recarregar();
+    }
+
+    private void Recarregar()
+    {
+        var fornId = _filtroFornecedor > 0 ? _filtroFornecedor : (long?)null;
+        _compras = CompraSvc.Listar(fornId, _filtroInicio, _filtroFim);
+    }
+
+    private void IniciarCancelamento(CompraResumo compra)
+    {
+        _alvo = compra;
+        _motivoCancelamento = "";
+        _cancelando = true;
+        _mensagem = null;
+    }
+
+    private void ConfirmarCancelamento()
+    {
+        _cancelando = false;
+        if (_alvo is null) return;
+        try
+        {
+            CompraSvc.Cancelar(_alvo.Id, _motivoCancelamento);
+            _mensagem = "Compra cancelada.";
+            _erro = false;
+            Recarregar();
+        }
+        catch (Exception ex)
+        {
+            _mensagem = ex.Message;
+            _erro = true;
+        }
+    }
+
+    private static RendimentoLote? TentarCalcular(CompraResumo c)
+    {
+        try
+        {
+            return RendimentoService.Calcular(c.PesoBrutoGramas, c.PesoCascadoGramas,
+                c.SnapshotPerdaBp, c.SnapshotGramasPorSaco, c.SnapshotTamanhoSacoGramas);
+        }
+        catch { return null; }
+    }
+}

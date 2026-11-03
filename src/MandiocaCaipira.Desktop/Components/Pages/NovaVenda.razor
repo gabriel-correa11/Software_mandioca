@@ -1,0 +1,119 @@
+@page "/venda"
+@inject ClienteService Clientes
+@inject VendaService Vendas
+
+<div class="page-header">
+    <h1>Nova venda</h1>
+    <p>Preencha os dados e confira o total antes de registrar</p>
+</div>
+
+<div class="page-body">
+    @if (_mensagem is not null)
+    {
+        <div class="alert @(_erro ? "alert-error" : "alert-success")">@_mensagem</div>
+    }
+
+    <div class="card" style="max-width:860px">
+        <div class="card-body">
+            <div class="form-group">
+                <label>Cliente</label>
+                <select class="form-select" @bind="_clienteId">
+                    <option value="0">Selecione...</option>
+                    @foreach (var c in _clientes)
+                    {
+                        <option value="@c.Id">@c.Nome</option>
+                    }
+                </select>
+            </div>
+
+            <div class="form-row">
+                <div class="form-group">
+                    <label>Quantidade (kg)</label>
+                    <input class="form-input" type="number" step="0.001" min="0.001"
+                           @bind="_kg" @bind:event="oninput" @bind:after="CalcularTotal" />
+                </div>
+                <div class="form-group">
+                    <label>Preço por kg (R$)</label>
+                    <input class="form-input" type="number" step="0.01" min="0.01"
+                           @bind="_preco" @bind:event="oninput" @bind:after="CalcularTotal" />
+                </div>
+            </div>
+
+            <div class="form-row">
+                <div class="form-group">
+                    <label>Data da operação</label>
+                    <input class="form-input" type="date" @bind="_data" />
+                </div>
+                <div class="form-group">
+                    <label>Pagamento inicial (opcional)</label>
+                    <input class="form-input" type="number" step="0.01" min="0" @bind="_inicial" />
+                </div>
+            </div>
+
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-top:18px">
+                <div class="metric-box" style="min-width:250px">
+                    <div class="label">Total da venda</div>
+                    <div class="value">@Fmt.Money(_totalCentavos)</div>
+                </div>
+                <button class="btn btn-primary" @onclick="Registrar" style="height:44px;padding:0 28px">
+                    Registrar venda
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+@code {
+    private IReadOnlyList<Cliente> _clientes = [];
+    private long _clienteId;
+    private decimal _kg;
+    private decimal _preco;
+    private DateTime _data = DateTime.Today;
+    private decimal _inicial;
+    private long _totalCentavos;
+    private string? _mensagem;
+    private bool _erro;
+
+    protected override void OnInitialized()
+    {
+        _clientes = Clientes.Listar();
+    }
+
+    private void CalcularTotal()
+    {
+        try
+        {
+            var gramas = ToGrams(_kg);
+            var centavos = ToCents(_preco);
+            _totalCentavos = gramas > 0 && centavos > 0
+                ? Vendas.CalcularTotal(gramas, centavos)
+                : 0;
+        }
+        catch { _totalCentavos = 0; }
+    }
+
+    private void Registrar()
+    {
+        _mensagem = null;
+        try
+        {
+            Vendas.Registrar(_clienteId, ToGrams(_kg), ToCents(_preco),
+                DateOnly.FromDateTime(_data), ToCents(_inicial));
+            _mensagem = "Venda registrada com sucesso.";
+            _erro = false;
+            _kg = 0; _preco = 0; _inicial = 0; _totalCentavos = 0;
+            _clientes = Clientes.Listar();
+        }
+        catch (Exception ex)
+        {
+            _mensagem = ex.Message;
+            _erro = true;
+        }
+    }
+
+    private static long ToGrams(decimal kg) =>
+        checked((long)decimal.Round(kg * 1000m, 0, MidpointRounding.AwayFromZero));
+
+    private static long ToCents(decimal value) =>
+        checked((long)decimal.Round(value * 100m, 0, MidpointRounding.AwayFromZero));
+}

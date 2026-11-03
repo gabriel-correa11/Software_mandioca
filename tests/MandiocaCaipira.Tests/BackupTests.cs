@@ -281,6 +281,120 @@ public sealed class BackupTests
         Assert.False(resultado.Ok);
     }
 
+    [Fact]
+    public void RestauracaoComConexoesAbertas()
+    {
+        using var env = new BackupEnv();
+        InserirDadosCompletos(env);
+
+        var backupPath = env.Backup.Criar();
+
+        // Insert extra data so we can verify restore worked
+        using (var db = env.Banco.AbrirConexao())
+            Executar(db, "INSERT INTO Cliente(Nome,Origem,CriadoEm) VALUES ('Extra','Manual','2026-10-15T10:00:00.0000000Z');");
+
+        // Open connections before restore — simulates real app state
+        using var conn1 = env.Banco.AbrirConexao();
+        using var conn2 = env.Banco.AbrirConexao();
+        Assert.Equal(3L, Escalar(conn1, "SELECT COUNT(*) FROM Cliente;"));
+
+        // Close connections then restore (BackupService.Restaurar calls LiberarConexoes internally)
+        conn1.Close();
+        conn2.Close();
+
+        var resultado = env.Backup.Restaurar(backupPath);
+
+        Assert.True(resultado.Ok);
+        using var restored = env.Banco.AbrirConexao();
+        Assert.Equal(2L, Escalar(restored, "SELECT COUNT(*) FROM Cliente;"));
+    }
+
+    [Fact]
+    public void RestauracaoRemoveArquivosWalEShm()
+    {
+        using var env = new BackupEnv();
+        InserirDadosCompletos(env);
+
+        var backupPath = env.Backup.Criar();
+
+        // Create fake WAL and SHM files
+        var walPath = env.Banco.CaminhoBanco + "-wal";
+        var shmPath = env.Banco.CaminhoBanco + "-shm";
+        File.WriteAllBytes(walPath, [0x01, 0x02]);
+        File.WriteAllBytes(shmPath, [0x03, 0x04]);
+
+        var resultado = env.Backup.Restaurar(backupPath);
+
+        Assert.True(resultado.Ok);
+        Assert.False(File.Exists(walPath), "WAL file should be removed after restore");
+        Assert.False(File.Exists(shmPath), "SHM file should be removed after restore");
+    }
+
+    [Fact]
+    public void FalhaDuranteSubstituicaoPreservaBancoOriginal()
+    {
+        using var env = new BackupEnv();
+        InserirDadosCompletos(env);
+
+        // Create a valid backup
+        var backupPath = env.Backup.Criar();
+
+        // Lock the database file so the restore cannot move it
+        using var fileLock = new FileStream(
+            env.Banco.CaminhoBanco, FileMode.Open, FileAccess.ReadWrite, FileShare.None);
+
+        var resultado = env.Backup.Restaurar(backupPath);
+
+        Assert.False(resultado.Ok);
+
+        // Release lock and verify original data is intact
+        fileLock.Close();
+        using var db = env.Banco.AbrirConexao();
+        Assert.Equal(2L, Escalar(db, "SELECT COUNT(*) FROM Cliente;"));
+    }
+
+    [Fact]
+    public void RestauracaoAtomicaNaoDeixaArquivosTemporarios()
+    {
+        using var env = new BackupEnv();
+        InserirDadosCompletos(env);
+
+        var backupPath = env.Backup.Criar();
+        var resultado = env.Backup.Restaurar(backupPath);
+
+        Assert.True(resultado.Ok);
+        var dir = Path.GetDirectoryName(env.Banco.CaminhoBanco)!;
+        var temporarios = Directory.GetFiles(dir, "restore-*.sqlite");
+        Assert.Empty(temporarios);
+        var antigos = Directory.GetFiles(dir, "*.old");
+        Assert.Empty(antigos);
+    }
+
+    [Fact]
+    public void InstanciaUnicaLiberaPermiteNovaAquisicao()
+    {
+        var nome = $"MandiocaCaipiraTest_{Guid.NewGuid():N}";
+        var primeira = new InstanciaUnicaTeste(nome);
+        Assert.True(primeira.IsOwner);
+
+        // Liberar should release the mutex without disposing
+        primeira.Liberar();
+
+        // Another thread should now be able to acquire it
+        bool? secondResult = null;
+        var thread = new Thread(() =>
+        {
+            using var segunda = new InstanciaUnicaTeste(nome);
+            secondResult = segunda.IsOwner;
+        });
+        thread.Start();
+        thread.Join();
+        Assert.True(secondResult);
+
+        // Dispose after Liberar should not throw
+        primeira.Dispose();
+    }
+
     private static void InserirDadosCompletos(BackupEnv env)
     {
         using var db = env.Banco.AbrirConexao();
@@ -336,6 +450,7 @@ public sealed class BackupTests
     {
         private readonly Mutex _mutex;
         private readonly bool _acquired;
+        private bool _released;
 
         public string MutexName { get; }
         public bool IsOwner => _acquired;
@@ -354,13 +469,19 @@ public sealed class BackupTests
             }
         }
 
-        public void Dispose()
+        public void Liberar()
         {
-            if (_acquired)
+            if (_acquired && !_released)
             {
+                _released = true;
                 try { _mutex.ReleaseMutex(); }
                 catch (ObjectDisposedException) { }
             }
+        }
+
+        public void Dispose()
+        {
+            Liberar();
             _mutex.Dispose();
         }
     }

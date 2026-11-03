@@ -15,6 +15,7 @@ public sealed class MainForm : KryptonForm
     private static readonly CultureInfo PtBr = CultureInfo.GetCultureInfo("pt-BR");
     private readonly ClienteService _clientes; private readonly VendaService _vendas; private readonly PagamentoService _pagamentos;
     private readonly ResumoRepository _resumo; private readonly ReciboService _recibos; private readonly BackupService _backup; private readonly ImportacaoClientesService _importacaoClientes;
+    private readonly InstanciaUnica? _instanciaUnica;
     private readonly TabControl _pages = new() { Dock = DockStyle.Fill, Appearance = TabAppearance.FlatButtons, SizeMode = TabSizeMode.Fixed, ItemSize = new Size(0, 1) };
 
     private readonly ToolStripStatusLabel _status = new("Pronto"); private readonly Dictionary<int, ToolStripButton> _nav = [];
@@ -28,9 +29,9 @@ public sealed class MainForm : KryptonForm
     private readonly CheckBox _inactive = new() { Text = "Incluir clientes inativos", AutoSize = true, Padding = new Padding(2, 6, 8, 0) };
     private BindingList<DistributionRow> _lines = [];
 
-    public MainForm(ClienteService clientes, VendaService vendas, PagamentoService pagamentos, ResumoRepository resumo, ReciboService recibos, BackupService backup, ImportacaoClientesService importacaoClientes)
+    public MainForm(ClienteService clientes, VendaService vendas, PagamentoService pagamentos, ResumoRepository resumo, ReciboService recibos, BackupService backup, ImportacaoClientesService importacaoClientes, InstanciaUnica? instanciaUnica = null)
     {
-        _clientes = clientes; _vendas = vendas; _pagamentos = pagamentos; _resumo = resumo; _recibos = recibos; _backup = backup; _importacaoClientes = importacaoClientes;
+        _clientes = clientes; _vendas = vendas; _pagamentos = pagamentos; _resumo = resumo; _recibos = recibos; _backup = backup; _importacaoClientes = importacaoClientes; _instanciaUnica = instanciaUnica;
         Text = "Mandioca Caipira"; MinimumSize = new Size(1024, 680); Size = new Size(1280, 760); StartPosition = FormStartPosition.CenterScreen;
         Font = Ui.Font; BackColor = SystemColors.Control; AutoScaleMode = AutoScaleMode.Dpi; PaletteMode = PaletteMode.ProfessionalSystem; KeyPreview = true;
         Controls.Add(BuildShell()); ConfigureGrids(); WireEvents(); ShowPage(0); RefreshAll(); Shown += (_, _) => FocusCurrentPage();
@@ -234,6 +235,7 @@ public sealed class MainForm : KryptonForm
         var result = _backup.Restaurar(selected.Caminho);
         if (!result.Ok) { ShowError(result.Mensagem!); return; }
         MessageBox.Show(this, "Backup restaurado com sucesso. O aplicativo será reiniciado.", "Restauração concluída", MessageBoxButtons.OK, MessageBoxIcon.Information);
+        _instanciaUnica?.Liberar();
         Application.Restart();
     }
 

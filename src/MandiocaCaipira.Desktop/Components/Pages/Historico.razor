@@ -1,0 +1,275 @@
+@page "/historico"
+@inject ClienteService Clientes
+@inject VendaService Vendas
+@inject PagamentoService Pagamentos
+@inject ReciboService Recibos
+
+<div class="page-header">
+    <h1>Histórico</h1>
+    <p>Consulta de vendas e pagamentos por período</p>
+</div>
+
+<div class="page-body">
+    @if (_mensagem is not null)
+    {
+        <div class="alert @(_erro ? "alert-error" : "alert-success")">@_mensagem</div>
+    }
+
+    <div class="toolbar">
+        <div class="form-group" style="margin-bottom:0">
+            <label class="text-sm">Cliente</label>
+            <select class="form-select" style="width:220px" @bind="_clienteId">
+                <option value="0">Todos</option>
+                @foreach (var c in _clientes)
+                {
+                    <option value="@c.Id">@c.Nome</option>
+                }
+            </select>
+        </div>
+        <div class="form-group" style="margin-bottom:0">
+            <label class="text-sm">De</label>
+            <input class="form-input" type="date" style="width:160px" @bind="_de" />
+        </div>
+        <div class="form-group" style="margin-bottom:0">
+            <label class="text-sm">Até</label>
+            <input class="form-input" type="date" style="width:160px" @bind="_ate" />
+        </div>
+        <button class="btn btn-primary" style="align-self:flex-end" @onclick="Filtrar">Filtrar</button>
+    </div>
+
+    <div class="card" style="margin-bottom:16px">
+        <div class="card-header" style="display:flex;justify-content:space-between;align-items:center">
+            <span>Vendas</span>
+            <div class="btn-group">
+                <button class="btn btn-secondary btn-sm" @onclick="GerarComprovanteVenda"
+                        disabled="@(_vendaSel is null)">
+                    Comprovante
+                </button>
+                <button class="btn btn-danger btn-sm" @onclick="CancelarVenda"
+                        disabled="@(_vendaSel is null || _vendaSel.Cancelada)">
+                    Cancelar venda
+                </button>
+            </div>
+        </div>
+        <div class="table-wrapper">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Cliente</th>
+                        <th class="text-center">Data</th>
+                        <th class="text-right">Quantidade</th>
+                        <th class="text-right">Total</th>
+                        <th class="text-right">Recebido</th>
+                        <th class="text-right">Saldo</th>
+                        <th class="text-center">Situação</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var v in _vendas)
+                    {
+                        <tr class="@(v == _vendaSel ? "selected" : "")"
+                            @onclick="() => _vendaSel = v">
+                            <td>@v.Cliente</td>
+                            <td class="text-center">@v.DataOperacao.ToString("d", Fmt.PtBr)</td>
+                            <td class="text-right">@Fmt.Kg(v.QuantidadeGramas)</td>
+                            <td class="text-right">@Fmt.Money(v.TotalCentavos)</td>
+                            <td class="text-right">@Fmt.Money(v.RecebidoCentavos)</td>
+                            <td class="text-right">@Fmt.Money(v.SaldoCentavos)</td>
+                            <td class="text-center">
+                                @{ var status = v.Cancelada ? "Cancelada" : v.SaldoCentavos == 0 ? "Paga" : v.RecebidoCentavos > 0 ? "Parcial" : "Pendente"; }
+                                <span class="badge @(v.Cancelada ? "badge-red" : v.SaldoCentavos == 0 ? "badge-green" : "badge-gray")">
+                                    @status
+                                </span>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+            @if (_vendas.Count == 0)
+            {
+                <div class="empty-state">Nenhuma venda no período.</div>
+            }
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="card-header" style="display:flex;justify-content:space-between;align-items:center">
+            <span>Pagamentos</span>
+            <div class="btn-group">
+                <button class="btn btn-secondary btn-sm" @onclick="GerarReciboPagamento"
+                        disabled="@(_pagSel is null)">
+                    Recibo
+                </button>
+                <button class="btn btn-danger btn-sm" @onclick="EstornarPagamento"
+                        disabled="@(_pagSel is null || _pagSel.EstornadoEm is not null)">
+                    Estornar pagamento
+                </button>
+            </div>
+        </div>
+        <div class="table-wrapper">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Cliente</th>
+                        <th class="text-center">Data</th>
+                        <th class="text-right">Valor recebido</th>
+                        <th class="text-right">Aplicado</th>
+                        <th class="text-right">Crédito</th>
+                        <th class="text-center">Situação</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var p in _pagamentos)
+                    {
+                        <tr class="@(p == _pagSel ? "selected" : "")"
+                            @onclick="() => _pagSel = p">
+                            <td>@p.Cliente</td>
+                            <td class="text-center">@p.DataOperacao.ToString("d", Fmt.PtBr)</td>
+                            <td class="text-right">@Fmt.Money(p.ValorCentavos)</td>
+                            <td class="text-right">@Fmt.Money(p.AlocadoCentavos)</td>
+                            <td class="text-right">@Fmt.Money(p.CreditoCentavos)</td>
+                            <td class="text-center">
+                                <span class="badge @(p.EstornadoEm is null ? "badge-green" : "badge-red")">
+                                    @(p.EstornadoEm is null ? "Válido" : "Estornado")
+                                </span>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+            @if (_pagamentos.Count == 0)
+            {
+                <div class="empty-state">Nenhum pagamento no período.</div>
+            }
+        </div>
+    </div>
+</div>
+
+@* Modal de motivo *@
+@if (_pedindoMotivo)
+{
+    <div style="position:fixed;inset:0;background:rgba(0,0,0,0.3);display:flex;align-items:center;justify-content:center;z-index:100">
+        <div class="card" style="width:400px">
+            <div class="card-header">@_tituloMotivo</div>
+            <div class="card-body">
+                <div class="form-group">
+                    <label>Motivo</label>
+                    <input class="form-input" @bind="_motivo" placeholder="Informe o motivo" />
+                </div>
+                <div class="btn-group" style="justify-content:flex-end">
+                    <button class="btn btn-secondary" @onclick="() => _pedindoMotivo = false">Cancelar</button>
+                    <button class="btn btn-danger" @onclick="_acaoMotivo">Confirmar</button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private IReadOnlyList<Cliente> _clientes = [];
+    private IReadOnlyList<VendaResumo> _vendas = [];
+    private IReadOnlyList<PagamentoResumo> _pagamentos = [];
+    private long _clienteId;
+    private DateTime _de = DateTime.Today.AddMonths(-1);
+    private DateTime _ate = DateTime.Today;
+    private VendaResumo? _vendaSel;
+    private PagamentoResumo? _pagSel;
+    private string? _mensagem;
+    private bool _erro;
+
+    private bool _pedindoMotivo;
+    private string _tituloMotivo = "";
+    private string _motivo = "";
+    private Action _acaoMotivo = () => { };
+
+    protected override void OnInitialized()
+    {
+        _clientes = Clientes.Listar(incluirInativos: true);
+        Filtrar();
+    }
+
+    private void Filtrar()
+    {
+        var from = DateOnly.FromDateTime(_de);
+        var to = DateOnly.FromDateTime(_ate);
+        var cid = _clienteId == 0 ? (long?)null : _clienteId;
+        _vendas = Vendas.Listar(cid, from, to);
+        _pagamentos = Pagamentos.Listar(cid, from, to);
+        _vendaSel = null;
+        _pagSel = null;
+    }
+
+    private void GerarComprovanteVenda()
+    {
+        if (_vendaSel is null) return;
+        try
+        {
+            var caminho = Recibos.GerarVenda(_vendaSel.Id);
+            AbrirArquivo(caminho);
+            _mensagem = "Comprovante gerado.";
+            _erro = false;
+        }
+        catch (Exception ex) { _mensagem = ex.Message; _erro = true; }
+    }
+
+    private void GerarReciboPagamento()
+    {
+        if (_pagSel is null) return;
+        try
+        {
+            var caminho = Recibos.GerarPagamento(_pagSel.Id);
+            AbrirArquivo(caminho);
+            _mensagem = "Recibo gerado.";
+            _erro = false;
+        }
+        catch (Exception ex) { _mensagem = ex.Message; _erro = true; }
+    }
+
+    private static void AbrirArquivo(string caminho)
+    {
+        System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(caminho)
+        {
+            UseShellExecute = true
+        });
+    }
+
+    private void CancelarVenda()
+    {
+        if (_vendaSel is null) return;
+        _tituloMotivo = "Cancelar venda";
+        _motivo = "";
+        _acaoMotivo = () =>
+        {
+            try
+            {
+                Vendas.Cancelar(_vendaSel.Id, _motivo);
+                _mensagem = "Venda cancelada.";
+                _erro = false;
+                _pedindoMotivo = false;
+                Filtrar();
+            }
+            catch (Exception ex) { _mensagem = ex.Message; _erro = true; }
+        };
+        _pedindoMotivo = true;
+    }
+
+    private void EstornarPagamento()
+    {
+        if (_pagSel is null) return;
+        _tituloMotivo = "Estornar pagamento";
+        _motivo = "";
+        _acaoMotivo = () =>
+        {
+            try
+            {
+                Pagamentos.Estornar(_pagSel.Id, _motivo);
+                _mensagem = "Pagamento estornado.";
+                _erro = false;
+                _pedindoMotivo = false;
+                Filtrar();
+            }
+            catch (Exception ex) { _mensagem = ex.Message; _erro = true; }
+        };
+        _pedindoMotivo = true;
+    }
+}

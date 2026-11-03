@@ -13,6 +13,8 @@ public sealed class ClienteService(ClienteRepository repository)
         nome = NormalizadorNomeCliente.NormalizarParaApresentacao(nome);
         if (nome.Length < 2)
             throw new ArgumentException("Informe um nome com pelo menos 2 caracteres.", nameof(nome));
+        if (nome.Length > 200)
+            throw new ArgumentException("Nome muito longo (máximo 200 caracteres).", nameof(nome));
         return repository.Inserir(nome, OrigemRegistro.Manual, DateTimeOffset.UtcNow);
     }
 
