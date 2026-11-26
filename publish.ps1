@@ -19,12 +19,12 @@ if (Test-Path $publishDir) {
 
 # Publish
 Write-Host "`n[1/4] dotnet publish..." -ForegroundColor Cyan
-dotnet publish $project -c Release -r win-x64 -o $publishDir --no-self-contained -p:PublishTrimmed=false
+dotnet publish $project -c Release -r win-x64 -o $publishDir --self-contained -p:PublishTrimmed=false
 if ($LASTEXITCODE -ne 0) { throw "Publish failed" }
 
 # Pack with Velopack
 Write-Host "`n[2/4] vpk pack..." -ForegroundColor Cyan
-vpk pack --packId $packId --packVersion $Version --packDir $publishDir --mainExe $mainExe --outputDir $releasesDir --runtime win-x64 --framework "net10.0-x64-desktop"
+vpk pack --packId $packId --packVersion $Version --packDir $publishDir --mainExe $mainExe --outputDir $releasesDir --runtime win-x64
 if ($LASTEXITCODE -ne 0) { throw "vpk pack failed" }
 
 # Create GitHub Release and upload assets
@@ -37,7 +37,7 @@ if (-not (Get-Command gh -ErrorAction SilentlyContinue)) {
 }
 
 # Delete existing release with same tag if it exists
-gh release delete $tag --yes 2>$null
+gh release delete $tag --yes 2>&1 | Out-Null
 
 # Create the release
 gh release create $tag --title "MandiocaCaipira v$Version" --notes "Versao $Version" --latest

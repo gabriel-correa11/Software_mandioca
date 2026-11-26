@@ -1,0 +1,148 @@
+@page "/novo-movimento/{TipoParam}"
+@inject MovimentoCaixaService Movimentos
+@inject ContaCaixaRepository Contas
+@inject CategoriaMovimentoRepository Categorias
+
+<div class="page-header">
+    <h1>@(_tipo == TipoMovimento.Entrada ? "Nova entrada" : "Nova saída")</h1>
+    <p>Registre um movimento manual no caixa</p>
+</div>
+
+<div class="page-body">
+    @if (_mensagem is not null)
+    {
+        <div class="alert @(_erro ? "alert-error" : "alert-success")">@_mensagem</div>
+    }
+
+    <div class="card" style="max-width:860px">
+        <div class="card-body">
+            @if (_tipo == TipoMovimento.Saida)
+            {
+                <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px">
+                    @foreach (var atalho in _atalhos)
+                    {
+                        <button class="btn btn-secondary btn-sm" @onclick="() => SelecionarAtalho(atalho)">
+                            @atalho.Nome
+                        </button>
+                    }
+                </div>
+            }
+
+            <div class="form-row">
+                <div class="form-group">
+                    <label>Data</label>
+                    <input class="form-input" type="date" @bind="_data" />
+                </div>
+                <div class="form-group">
+                    <label>Conta</label>
+                    <select class="form-select" @bind="_contaId">
+                        <option value="0">Selecione...</option>
+                        @foreach (var c in _contas)
+                        {
+                            <option value="@c.Id">@c.Nome</option>
+                        }
+                    </select>
+                </div>
+            </div>
+
+            <div class="form-row">
+                <div class="form-group">
+                    <label>Categoria</label>
+                    <select class="form-select" @bind="_categoriaId">
+                        <option value="0">Selecione...</option>
+                        @foreach (var c in _categorias)
+                        {
+                            <option value="@c.Id">@c.Nome</option>
+                        }
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Valor (R$)</label>
+                    <input class="form-input" type="number" step="0.01" min="0.01" @bind="_valor" />
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label>Descrição</label>
+                <input class="form-input" @bind="_descricao" placeholder="Descreva o movimento" />
+            </div>
+
+            <div class="form-group">
+                <label>Beneficiário (opcional)</label>
+                <input class="form-input" @bind="_beneficiario" placeholder="Cliente, fornecedor, funcionário..." />
+            </div>
+
+            <div style="display:flex;gap:12px;margin-top:18px">
+                <button class="btn btn-primary" @onclick="Registrar">Registrar</button>
+                <button class="btn btn-secondary" @onclick="Limpar">Limpar</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+@code {
+    [Parameter] public string TipoParam { get; set; } = "saida";
+
+    private TipoMovimento _tipo;
+    private IReadOnlyList<ContaCaixa> _contas = [];
+    private IReadOnlyList<CategoriaMovimento> _categorias = [];
+    private IReadOnlyList<CategoriaMovimento> _atalhos = [];
+    private long _contaId;
+    private long _categoriaId;
+    private DateTime _data = DateTime.Today;
+    private decimal _valor;
+    private string _descricao = "";
+    private string _beneficiario = "";
+    private string? _mensagem;
+    private bool _erro;
+
+    private static readonly string[] NomesAtalho =
+        ["Funcionario", "Combustivel", "Energia e agua", "Embalagem", "Manutencao", "Outros"];
+
+    protected override void OnParametersSet()
+    {
+        _tipo = TipoParam?.Equals("entrada", StringComparison.OrdinalIgnoreCase) == true
+            ? TipoMovimento.Entrada : TipoMovimento.Saida;
+        _contas = Contas.Listar();
+        _categorias = Categorias.Listar(_tipo);
+        _atalhos = _categorias.Where(c => NomesAtalho.Contains(c.Nome)).ToList();
+    }
+
+    private void SelecionarAtalho(CategoriaMovimento cat)
+    {
+        _categoriaId = cat.Id;
+    }
+
+    private void Registrar()
+    {
+        _mensagem = null;
+        try
+        {
+            var centavos = ToCents(_valor);
+            Movimentos.Registrar(_tipo, DateOnly.FromDateTime(_data), _contaId, _categoriaId,
+                centavos, _descricao, string.IsNullOrWhiteSpace(_beneficiario) ? null : _beneficiario);
+            _mensagem = "Movimento registrado com sucesso.";
+            _erro = false;
+            _valor = 0;
+            _descricao = "";
+            _beneficiario = "";
+        }
+        catch (Exception ex)
+        {
+            _mensagem = ex.Message;
+            _erro = true;
+        }
+    }
+
+    private void Limpar()
+    {
+        _valor = 0;
+        _descricao = "";
+        _beneficiario = "";
+        _categoriaId = 0;
+        _mensagem = null;
+    }
+
+    private static long ToCents(decimal value) =>
+        checked((long)decimal.Round(value * 100m, 0, MidpointRounding.AwayFromZero));
+}

@@ -1,0 +1,224 @@
+@page "/fluxo-caixa"
+@inject MovimentoCaixaService Movimentos
+@inject ContaCaixaRepository Contas
+@inject CategoriaMovimentoRepository Categorias
+
+<div class="page-header">
+    <h1>Fluxo de caixa</h1>
+    <p>Controle de entradas e saídas da empresa</p>
+</div>
+
+<div class="page-body">
+    @if (_mensagem is not null)
+    {
+        <div class="alert @(_erro ? "alert-error" : "alert-success")">@_mensagem</div>
+    }
+
+    <div class="toolbar">
+        <div class="form-group" style="margin-bottom:0">
+            <label class="text-sm">De</label>
+            <input class="form-input" type="date" style="width:160px" @bind="_de" />
+        </div>
+        <div class="form-group" style="margin-bottom:0">
+            <label class="text-sm">Até</label>
+            <input class="form-input" type="date" style="width:160px" @bind="_ate" />
+        </div>
+        <div class="form-group" style="margin-bottom:0">
+            <label class="text-sm">Conta</label>
+            <select class="form-select" style="width:160px" @bind="_contaId">
+                <option value="0">Todas</option>
+                @foreach (var c in _contas)
+                {
+                    <option value="@c.Id">@c.Nome</option>
+                }
+            </select>
+        </div>
+        <div class="form-group" style="margin-bottom:0">
+            <label class="text-sm">Tipo</label>
+            <select class="form-select" style="width:140px" @bind="_tipoFiltro">
+                <option value="">Todos</option>
+                <option value="Entrada">Entrada</option>
+                <option value="Saida">Saída</option>
+            </select>
+        </div>
+        <button class="btn btn-primary" style="align-self:flex-end" @onclick="Filtrar">Filtrar</button>
+    </div>
+
+    <div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:16px">
+        <div class="metric-box" style="flex:1;min-width:160px">
+            <div class="label">Entradas</div>
+            <div class="value" style="color:var(--success)">@Fmt.Money(_entradas)</div>
+        </div>
+        <div class="metric-box" style="flex:1;min-width:160px">
+            <div class="label">Saídas</div>
+            <div class="value" style="color:var(--danger)">@Fmt.Money(_saidas)</div>
+        </div>
+        <div class="metric-box" style="flex:1;min-width:160px">
+            <div class="label">Saldo do período</div>
+            <div class="value">@Fmt.Money(_saldoPeriodo)</div>
+        </div>
+        <div class="metric-box" style="flex:1;min-width:160px">
+            <div class="label">Saldo total hoje</div>
+            <div class="value" style="font-weight:700">@Fmt.Money(_saldoTotal)</div>
+        </div>
+    </div>
+
+    @if (_saldosPorConta.Count > 0)
+    {
+        <div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:16px">
+            @foreach (var (conta, saldo) in _saldosPorConta)
+            {
+                <div class="metric-box" style="flex:1;min-width:140px">
+                    <div class="label">@conta</div>
+                    <div class="value">@Fmt.Money(saldo)</div>
+                </div>
+            }
+        </div>
+    }
+
+    <div class="card">
+        <div class="card-header" style="display:flex;justify-content:space-between;align-items:center">
+            <span>Movimentos</span>
+            <div class="btn-group">
+                <a class="btn btn-primary btn-sm" href="novo-movimento/entrada">Nova entrada</a>
+                <a class="btn btn-danger btn-sm" href="novo-movimento/saida">Nova saída</a>
+                <button class="btn btn-secondary btn-sm" @onclick="PedirCancelamento"
+                        disabled="@(_selecionado is null || _selecionado.Status == StatusMovimento.Cancelado)">
+                    Cancelar
+                </button>
+            </div>
+        </div>
+        <div class="table-wrapper">
+            <table>
+                <thead>
+                    <tr>
+                        <th class="text-center">Data</th>
+                        <th>Tipo</th>
+                        <th>Categoria</th>
+                        <th>Descrição</th>
+                        <th>Beneficiário</th>
+                        <th>Conta</th>
+                        <th class="text-right">Valor</th>
+                        <th class="text-center">Status</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var m in _movimentos)
+                    {
+                        var cancelado = m.Status == StatusMovimento.Cancelado;
+                        <tr class="@(m == _selecionado ? "selected" : "") @(cancelado ? "text-muted" : "")"
+                            @onclick="() => _selecionado = m">
+                            <td class="text-center">@m.DataMovimento.ToString("d", Fmt.PtBr)</td>
+                            <td>
+                                <span style="color:@(m.Tipo == TipoMovimento.Entrada ? "var(--success)" : "var(--danger)")">
+                                    @(m.Tipo == TipoMovimento.Entrada ? "Entrada" : "Saída")
+                                </span>
+                            </td>
+                            <td>@m.Categoria</td>
+                            <td>@m.Descricao</td>
+                            <td>@(m.Beneficiario ?? "—")</td>
+                            <td>@m.Conta</td>
+                            <td class="text-right" style="color:@(cancelado ? "inherit" : m.Tipo == TipoMovimento.Entrada ? "var(--success)" : "var(--danger)")">
+                                @Fmt.Money(m.ValorCentavos)
+                            </td>
+                            <td class="text-center">
+                                <span class="badge @(cancelado ? "badge-red" : "badge-green")">
+                                    @(cancelado ? "Cancelado" : "Ativo")
+                                </span>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+            @if (_movimentos.Count == 0)
+            {
+                <div class="empty-state">Nenhum movimento no período.</div>
+            }
+        </div>
+    </div>
+</div>
+
+@if (_pedindoMotivo)
+{
+    <div style="position:fixed;inset:0;background:rgba(0,0,0,0.3);display:flex;align-items:center;justify-content:center;z-index:100">
+        <div class="card" style="width:400px">
+            <div class="card-header">Cancelar movimento</div>
+            <div class="card-body">
+                <div class="form-group">
+                    <label>Motivo</label>
+                    <input class="form-input" @bind="_motivo" placeholder="Informe o motivo" />
+                </div>
+                <div class="btn-group" style="justify-content:flex-end">
+                    <button class="btn btn-secondary" @onclick="() => _pedindoMotivo = false">Voltar</button>
+                    <button class="btn btn-danger" @onclick="ConfirmarCancelamento">Confirmar</button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private IReadOnlyList<ContaCaixa> _contas = [];
+    private IReadOnlyList<MovimentoCaixaResumo> _movimentos = [];
+    private IReadOnlyList<(string Conta, long Saldo)> _saldosPorConta = [];
+    private MovimentoCaixaResumo? _selecionado;
+    private long _contaId;
+    private string _tipoFiltro = "";
+    private DateTime _de = DateTime.Today.AddMonths(-1);
+    private DateTime _ate = DateTime.Today;
+    private long _entradas, _saidas, _saldoPeriodo, _saldoTotal;
+    private string? _mensagem;
+    private bool _erro;
+    private bool _pedindoMotivo;
+    private string _motivo = "";
+
+    protected override void OnInitialized()
+    {
+        _contas = Contas.Listar();
+        Filtrar();
+    }
+
+    private void Filtrar()
+    {
+        var from = DateOnly.FromDateTime(_de);
+        var to = DateOnly.FromDateTime(_ate);
+        var conta = _contaId == 0 ? (long?)null : _contaId;
+        TipoMovimento? tipo = _tipoFiltro switch
+        {
+            "Entrada" => TipoMovimento.Entrada,
+            "Saida" => TipoMovimento.Saida,
+            _ => null
+        };
+
+        _movimentos = Movimentos.Listar(from, to, conta, tipo);
+        _selecionado = null;
+
+        var ativos = _movimentos.Where(m => m.Status == StatusMovimento.Ativo).ToList();
+        _entradas = ativos.Where(m => m.Tipo == TipoMovimento.Entrada).Sum(m => m.ValorCentavos);
+        _saidas = ativos.Where(m => m.Tipo == TipoMovimento.Saida).Sum(m => m.ValorCentavos);
+        _saldoPeriodo = _entradas - _saidas;
+        _saldoTotal = Movimentos.SaldoTotal();
+        _saldosPorConta = Movimentos.SaldoPorConta();
+    }
+
+    private void PedirCancelamento()
+    {
+        if (_selecionado is null || _selecionado.Status == StatusMovimento.Cancelado) return;
+        _motivo = "";
+        _pedindoMotivo = true;
+    }
+
+    private void ConfirmarCancelamento()
+    {
+        if (_selecionado is null) return;
+        try
+        {
+            Movimentos.Cancelar(_selecionado.Id, _motivo);
+            _mensagem = "Movimento cancelado.";
+            _erro = false;
+            _pedindoMotivo = false;
+            Filtrar();
+        }
+        catch (Exception ex) { _mensagem = ex.Message; _erro = true; }
+    }
+}

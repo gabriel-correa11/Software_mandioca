@@ -9,7 +9,9 @@ public sealed class CompraService(
     BancoSqlite banco,
     CompraRepository compras,
     FornecedorRepository fornecedores,
-    ConfiguracaoRendimentoRepository configuracoes)
+    ConfiguracaoRendimentoRepository configuracoes,
+    MovimentoCaixaRepository? movimentosCaixa = null,
+    CategoriaMovimentoRepository? categoriasCaixa = null)
 {
     public long Registrar(
         long fornecedorId, DateOnly dataCompra, long pesoBrutoGramas,
@@ -81,6 +83,37 @@ public sealed class CompraService(
         Log.Information("Compra {CompraId} cancelada: {Motivo}", compraId, motivo);
     }
 
-    public void MarcarPaga(long compraId) =>
+    public void MarcarPaga(long compraId, long? contaCaixaId = null)
+    {
+        var lista = compras.Listar();
+        var compra = lista.FirstOrDefault(c => c.Id == compraId);
+
         compras.MarcarPaga(compraId);
+
+        if (contaCaixaId.HasValue && compra?.CustoCentavos > 0
+            && movimentosCaixa is not null && categoriasCaixa is not null)
+        {
+            var catCompra = categoriasCaixa.ObterPorNomeETipo("Compra de mandioca", TipoMovimento.Saida);
+            if (catCompra is not null
+                && !movimentosCaixa.ExisteMovimentoOrigem(OrigemMovimento.CompraMandioca, compraId))
+            {
+                using var connection = banco.AbrirConexao();
+                using var transaction = connection.BeginTransaction();
+                try
+                {
+                    movimentosCaixa.Inserir(connection, transaction,
+                        TipoMovimento.Saida, compra.DataCompra, contaCaixaId.Value, catCompra.Id,
+                        compra.CustoCentavos.Value, $"Compra de mandioca - {compra.Fornecedor}",
+                        compra.Fornecedor, OrigemMovimento.CompraMandioca, compraId,
+                        DateTimeOffset.UtcNow);
+                    transaction.Commit();
+                }
+                catch
+                {
+                    transaction.Rollback();
+                    throw;
+                }
+            }
+        }
+    }
 }

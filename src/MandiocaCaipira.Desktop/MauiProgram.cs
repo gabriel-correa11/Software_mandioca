@@ -64,6 +64,10 @@ public static class MauiProgram
         builder.Services.AddSingleton(new FornecedorRepository(banco));
         builder.Services.AddSingleton(new CompraRepository(banco));
         builder.Services.AddSingleton(new ConfiguracaoRendimentoRepository(banco));
+        builder.Services.AddSingleton(new ContaCaixaRepository(banco));
+        builder.Services.AddSingleton(new CategoriaMovimentoRepository(banco));
+        builder.Services.AddSingleton(new MovimentoCaixaRepository(banco));
+        builder.Services.AddSingleton(new ConferenciaSaldoRepository(banco));
 
         builder.Services.AddSingleton<ClienteService>();
         builder.Services.AddSingleton<VendaService>();
@@ -74,6 +78,8 @@ public static class MauiProgram
             new VendaRepository(banco), new PagamentoRepository(banco), CaminhosDados.Recibos));
         builder.Services.AddSingleton(new ImportacaoClientesService(
             new LeitorArquivoClientes(), new ClienteRepository(banco), Log.Logger));
+        builder.Services.AddSingleton<MovimentoCaixaService>();
+        builder.Services.AddSingleton<ConferenciaService>();
         builder.Services.AddSingleton(new UpdateService(RepoUrl));
 
         return builder.Build();

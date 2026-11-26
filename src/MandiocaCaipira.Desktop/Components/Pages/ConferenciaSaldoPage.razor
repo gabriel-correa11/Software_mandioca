@@ -1,0 +1,161 @@
+@page "/conferencia-saldo"
+@inject ConferenciaService Conferencias
+@inject ContaCaixaRepository Contas
+
+<div class="page-header">
+    <h1>Conferência de saldo</h1>
+    <p>Compare o saldo do sistema com o saldo real (app do banco, gaveta)</p>
+</div>
+
+<div class="page-body">
+    @if (_mensagem is not null)
+    {
+        <div class="alert @(_erro ? "alert-error" : "alert-success")">@_mensagem</div>
+    }
+
+    <div class="card" style="max-width:600px;margin-bottom:20px">
+        <div class="card-body">
+            <div class="form-group">
+                <label>Conta</label>
+                <select class="form-select" @bind="_contaId">
+                    <option value="0">Selecione...</option>
+                    @foreach (var c in _contas)
+                    {
+                        <option value="@c.Id">@c.Nome</option>
+                    }
+                </select>
+            </div>
+            <div class="form-row">
+                <div class="form-group">
+                    <label>Data</label>
+                    <input class="form-input" type="date" @bind="_data" />
+                </div>
+                <div class="form-group">
+                    <label>Saldo real (R$)</label>
+                    <input class="form-input" type="number" step="0.01" @bind="_saldoInformado" />
+                </div>
+            </div>
+
+            <button class="btn btn-primary" style="margin-top:12px" @onclick="Calcular">Calcular diferença</button>
+
+            @if (_calculado)
+            {
+                <div style="margin-top:20px;padding:16px;border-radius:8px;background:var(--surface)">
+                    <div style="display:flex;gap:16px;flex-wrap:wrap">
+                        <div class="metric-box" style="flex:1;min-width:140px">
+                            <div class="label">Saldo no sistema</div>
+                            <div class="value">@Fmt.Money(_saldoSistema)</div>
+                        </div>
+                        <div class="metric-box" style="flex:1;min-width:140px">
+                            <div class="label">Diferença</div>
+                            <div class="value" style="color:@(_diferenca == 0 ? "var(--success)" : "var(--danger)")">
+                                @Fmt.Money(_diferenca)
+                            </div>
+                        </div>
+                    </div>
+                    <p style="margin-top:12px;font-size:14px;color:var(--text-secondary)">
+                        @if (_diferenca == 0)
+                        {
+                            <span>Conferido, saldos batem.</span>
+                        }
+                        else
+                        {
+                            <span>Diferença de @Fmt.Money(Math.Abs(_diferenca)). Procure o movimento que falta.</span>
+                        }
+                    </p>
+
+                    <div class="form-group" style="margin-top:12px">
+                        <label>Observação (opcional)</label>
+                        <input class="form-input" @bind="_observacao" />
+                    </div>
+                    <button class="btn btn-secondary" style="margin-top:8px" @onclick="Salvar">Salvar conferência</button>
+                </div>
+            }
+        </div>
+    </div>
+
+    @if (_historico.Count > 0)
+    {
+        <div class="card">
+            <div class="card-header">Histórico de conferências</div>
+            <div class="table-wrapper">
+                <table>
+                    <thead>
+                        <tr>
+                            <th class="text-center">Data</th>
+                            <th class="text-right">Saldo informado</th>
+                            <th class="text-right">Saldo sistema</th>
+                            <th class="text-right">Diferença</th>
+                            <th>Observação</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var c in _historico)
+                        {
+                            <tr>
+                                <td class="text-center">@c.DataConferencia.ToString("d", Fmt.PtBr)</td>
+                                <td class="text-right">@Fmt.Money(c.SaldoInformadoCentavos)</td>
+                                <td class="text-right">@Fmt.Money(c.SaldoSistemaCentavos)</td>
+                                <td class="text-right" style="color:@(c.DiferencaCentavos == 0 ? "var(--success)" : "var(--danger)")">
+                                    @Fmt.Money(c.DiferencaCentavos)
+                                </td>
+                                <td>@(c.Observacao ?? "—")</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    }
+</div>
+
+@code {
+    private IReadOnlyList<ContaCaixa> _contas = [];
+    private IReadOnlyList<ConferenciaSaldo> _historico = [];
+    private long _contaId;
+    private DateTime _data = DateTime.Today;
+    private decimal _saldoInformado;
+    private string _observacao = "";
+    private long _saldoSistema;
+    private long _diferenca;
+    private bool _calculado;
+    private string? _mensagem;
+    private bool _erro;
+
+    protected override void OnInitialized()
+    {
+        _contas = Contas.Listar();
+        _historico = Conferencias.Listar();
+    }
+
+    private void Calcular()
+    {
+        _mensagem = null;
+        if (_contaId == 0) { _mensagem = "Selecione uma conta."; _erro = true; return; }
+
+        var centavos = ToCents(_saldoInformado);
+        var (sistema, dif) = Conferencias.Calcular(_contaId, DateOnly.FromDateTime(_data), centavos);
+        _saldoSistema = sistema;
+        _diferenca = dif;
+        _calculado = true;
+    }
+
+    private void Salvar()
+    {
+        try
+        {
+            Conferencias.Salvar(_contaId, DateOnly.FromDateTime(_data),
+                ToCents(_saldoInformado), string.IsNullOrWhiteSpace(_observacao) ? null : _observacao);
+            _mensagem = "Conferência salva.";
+            _erro = false;
+            _calculado = false;
+            _saldoInformado = 0;
+            _observacao = "";
+            _historico = Conferencias.Listar();
+        }
+        catch (Exception ex) { _mensagem = ex.Message; _erro = true; }
+    }
+
+    private static long ToCents(decimal value) =>
+        checked((long)decimal.Round(value * 100m, 0, MidpointRounding.AwayFromZero));
+}

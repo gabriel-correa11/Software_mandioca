@@ -20,6 +20,7 @@
     <PackageReference Include="Serilog.Sinks.File" Version="7.0.0" />
     <EmbeddedResource Include="Data\Migrations\001_Initial.sql" />
     <EmbeddedResource Include="Data\Migrations\002_CompraMandioca.sql" />
+    <EmbeddedResource Include="Data\Migrations\003_FluxoCaixa.sql" />
   </ItemGroup>
 
 </Project>

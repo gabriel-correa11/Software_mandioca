@@ -7,10 +7,12 @@ namespace MandiocaCaipira.App.Services;
 public sealed class PagamentoService(
     BancoSqlite banco,
     PagamentoRepository pagamentos,
-    VendaRepository vendas)
+    VendaRepository vendas,
+    MovimentoCaixaRepository? movimentosCaixa = null,
+    CategoriaMovimentoRepository? categoriasCaixa = null)
 {
     public long Registrar(long clienteId, long valorCentavos, DateOnly dataOperacao,
-        IReadOnlyCollection<AlocacaoSolicitada> alocacoes)
+        IReadOnlyCollection<AlocacaoSolicitada> alocacoes, long? contaCaixaId = null)
     {
         if (clienteId <= 0) throw new ArgumentException("Selecione um cliente.");
         if (valorCentavos <= 0) throw new ArgumentException("Informe um valor recebido maior que zero.");
@@ -39,6 +41,19 @@ public sealed class PagamentoService(
             foreach (var alocacao in alocacoes)
                 pagamentos.InserirAlocacao(connection, transaction, id, alocacao.VendaId,
                     alocacao.ValorCentavos, agora);
+
+            if (contaCaixaId.HasValue && movimentosCaixa is not null && categoriasCaixa is not null)
+            {
+                var catRecebimento = categoriasCaixa.ObterPorNomeETipo("Recebimento de cliente", TipoMovimento.Entrada);
+                if (catRecebimento is not null)
+                {
+                    movimentosCaixa.Inserir(connection, transaction,
+                        TipoMovimento.Entrada, dataOperacao, contaCaixaId.Value, catRecebimento.Id,
+                        valorCentavos, "Recebimento de cliente", null,
+                        OrigemMovimento.PagamentoCliente, id, agora);
+                }
+            }
+
             transaction.Commit();
             return id;
         }

@@ -26,13 +26,18 @@ public sealed class InicializadorBanco
         .. ObjetosV1,
         "Fornecedor", "ConfiguracaoRendimento", "CompraMandioca",
         "TR_Compra_FornecedorAtivo", "TR_Compra_Imutavel", "TR_Compra_SemExclusao",
-        "TR_Fornecedor_SemExclusao", "TR_ConfigRendimento_SemExclusao"
+        "TR_Fornecedor_SemExclusao", "TR_ConfigRendimento_SemExclusao",
+        "ContaCaixa", "CategoriaMovimento", "MovimentoCaixa", "ConferenciaSaldo",
+        "TR_Mov_TipoCategoria", "TR_Mov_ContaAtiva", "TR_Mov_Imutavel",
+        "TR_Mov_SemExclusao", "TR_Conta_SemExclusao", "TR_Cat_SemExclusao",
+        "TR_Conf_SemExclusao", "TR_Conf_Imutavel"
     ];
 
     private static readonly IReadOnlyList<MigracaoSchema> Migracoes =
     [
         new(0, 1, AplicarV1),
         new(1, 2, AplicarV2),
+        new(2, 3, AplicarV3),
     ];
 
     public static int VersaoAtual => Migracoes[^1].VersaoDestino;
@@ -236,6 +241,14 @@ public sealed class InicializadorBanco
         using var sql = connection.CreateCommand();
         sql.Transaction = transaction;
         sql.CommandText = LerScriptEmbutido("MandiocaCaipira.App.Data.Migrations.002_CompraMandioca.sql");
+        sql.ExecuteNonQuery();
+    }
+
+    private static void AplicarV3(SqliteConnection connection, SqliteTransaction transaction)
+    {
+        using var sql = connection.CreateCommand();
+        sql.Transaction = transaction;
+        sql.CommandText = LerScriptEmbutido("MandiocaCaipira.App.Data.Migrations.003_FluxoCaixa.sql");
         sql.ExecuteNonQuery();
     }
 
