@@ -1,3 +1,4 @@
+using Serilog;
 using Velopack;
 using Velopack.Sources;
 
@@ -14,9 +15,18 @@ public sealed class UpdateService
 
     public bool UpdateAvailable { get; private set; }
     public string? NewVersion { get; private set; }
+    public bool IsInstalled => new UpdateManager(_source).IsInstalled;
 
     public async Task<bool> CheckForUpdatesAsync()
     {
+        if (!IsInstalled)
+        {
+            Log.Warning("Velopack: app nao foi instalado pelo Setup, atualizacao automatica indisponivel");
+            throw new InvalidOperationException(
+                "O programa não foi instalado pelo instalador oficial. " +
+                "Baixe o instalador (MandiocaCaipira-win-Setup.exe) e instale novamente para receber atualizações automáticas.");
+        }
+
         var mgr = new UpdateManager(_source);
         var info = await mgr.CheckForUpdatesAsync();
         if (info is null)

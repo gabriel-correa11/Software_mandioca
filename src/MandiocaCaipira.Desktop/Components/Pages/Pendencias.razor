@@ -40,6 +40,15 @@
                         </tr>
                     }
                 </tbody>
+                @if (_vendas.Count > 0)
+                {
+                    <tfoot>
+                        <tr style="font-weight:700">
+                            <td colspan="4" class="text-right">Total</td>
+                            <td class="text-right text-red">@Fmt.Money(_vendas.Sum(v => v.SaldoCentavos))</td>
+                        </tr>
+                    </tfoot>
+                }
             </table>
             @if (_vendas.Count == 0)
             {
