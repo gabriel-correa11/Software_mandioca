@@ -71,6 +71,17 @@ public sealed class ClienteRepository(BancoSqlite banco)
         }
     }
 
+    public void Renomear(long clienteId, string novoNome)
+    {
+        using var connection = banco.AbrirConexao();
+        using var command = connection.CreateCommand();
+        command.CommandText = "UPDATE Cliente SET Nome = $nome WHERE Id = $id;";
+        command.Parameters.AddWithValue("$nome", novoNome);
+        command.Parameters.AddWithValue("$id", clienteId);
+        if (command.ExecuteNonQuery() != 1)
+            throw new InvalidOperationException("Cliente não encontrado.");
+    }
+
     public void DefinirAtivo(long clienteId, bool ativo)
     {
         using var connection = banco.AbrirConexao();

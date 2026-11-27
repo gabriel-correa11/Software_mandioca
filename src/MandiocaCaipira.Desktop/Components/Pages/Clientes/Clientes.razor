@@ -14,6 +14,9 @@
         <div class="spacer"></div>
         <button class="btn btn-primary" @onclick="Cadastrar">Cadastrar cliente</button>
         <a class="btn btn-secondary" href="importar-clientes">Importar clientes</a>
+        <button class="btn btn-secondary" @onclick="AbrirEdicao" disabled="@(_selecionado is null)">
+            Editar
+        </button>
         <button class="btn btn-secondary" @onclick="ToggleAtivo" disabled="@(_selecionado is null)">
             @(_selecionado?.Ativo == true ? "Inativar" : "Reativar")
         </button>
@@ -74,14 +77,11 @@
             _selecionado = null;
     }
 
-    private void Cadastrar()
-    {
-        // Simple prompt via state — will replace with modal later
-        _cadastrando = true;
-    }
-
+    // --- Cadastrar ---
     private bool _cadastrando;
     private string _novoNome = "";
+
+    private void Cadastrar() => _cadastrando = true;
 
     private void ConfirmarCadastro()
     {
@@ -108,6 +108,43 @@
         _novoNome = "";
     }
 
+    // --- Editar ---
+    private bool _editando;
+    private string _nomeEditado = "";
+
+    private void AbrirEdicao()
+    {
+        if (_selecionado is null) return;
+        _nomeEditado = _selecionado.Nome;
+        _editando = true;
+    }
+
+    private void ConfirmarEdicao()
+    {
+        if (_selecionado is null) return;
+        _mensagem = null;
+        try
+        {
+            ClienteSvc.Renomear(_selecionado.Id, _nomeEditado);
+            _mensagem = "Nome alterado com sucesso.";
+            _erro = false;
+            _editando = false;
+            Refresh();
+        }
+        catch (Exception ex)
+        {
+            _mensagem = ex.Message;
+            _erro = true;
+        }
+    }
+
+    private void CancelarEdicao()
+    {
+        _editando = false;
+        _nomeEditado = "";
+    }
+
+    // --- Ativar/Inativar ---
     private void ToggleAtivo()
     {
         if (_selecionado is null) return;
@@ -128,19 +165,34 @@
 
 @if (_cadastrando)
 {
-    <div style="position:fixed;inset:0;background:rgba(0,0,0,0.3);display:flex;align-items:center;justify-content:center;z-index:100">
-        <div class="card" style="width:400px">
-            <div class="card-header">Cadastrar cliente</div>
-            <div class="card-body">
-                <div class="form-group">
-                    <label>Nome do cliente</label>
-                    <input class="form-input" @bind="_novoNome" placeholder="Nome completo" />
-                </div>
-                <div class="btn-group" style="justify-content:flex-end">
-                    <button class="btn btn-secondary" @onclick="CancelarCadastro">Cancelar</button>
-                    <button class="btn btn-primary" @onclick="ConfirmarCadastro">Cadastrar</button>
-                </div>
+    <ModalOverlay OnClose="CancelarCadastro">
+        <div class="card-header">Cadastrar cliente</div>
+        <div class="card-body">
+            <div class="form-group">
+                <label>Nome do cliente</label>
+                <input class="form-input" @bind="_novoNome" placeholder="Nome completo" />
+            </div>
+            <div class="btn-group" style="justify-content:flex-end">
+                <button class="btn btn-secondary" @onclick="CancelarCadastro">Cancelar</button>
+                <button class="btn btn-primary" @onclick="ConfirmarCadastro">Cadastrar</button>
             </div>
         </div>
-    </div>
+    </ModalOverlay>
+}
+
+@if (_editando)
+{
+    <ModalOverlay OnClose="CancelarEdicao">
+        <div class="card-header">Editar cliente</div>
+        <div class="card-body">
+            <div class="form-group">
+                <label>Nome do cliente</label>
+                <input class="form-input" @bind="_nomeEditado" />
+            </div>
+            <div class="btn-group" style="justify-content:flex-end">
+                <button class="btn btn-secondary" @onclick="CancelarEdicao">Cancelar</button>
+                <button class="btn btn-primary" @onclick="ConfirmarEdicao">Salvar</button>
+            </div>
+        </div>
+    </ModalOverlay>
 }

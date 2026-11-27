@@ -18,5 +18,15 @@ public sealed class ClienteService(ClienteRepository repository)
         return repository.Inserir(nome, OrigemRegistro.Manual, DateTimeOffset.UtcNow);
     }
 
+    public void Renomear(long clienteId, string novoNome)
+    {
+        novoNome = NormalizadorNomeCliente.NormalizarParaApresentacao(novoNome);
+        if (novoNome.Length < 2)
+            throw new ArgumentException("Informe um nome com pelo menos 2 caracteres.", nameof(novoNome));
+        if (novoNome.Length > 200)
+            throw new ArgumentException("Nome muito longo (máximo 200 caracteres).", nameof(novoNome));
+        repository.Renomear(clienteId, novoNome);
+    }
+
     public void DefinirAtivo(long clienteId, bool ativo) => repository.DefinirAtivo(clienteId, ativo);
 }
