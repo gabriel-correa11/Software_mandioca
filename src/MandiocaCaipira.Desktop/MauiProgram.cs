@@ -10,7 +10,7 @@ public static class MauiProgram
 {
     private static InstanciaUnica? _instancia;
 
-    public const string Versao = "1.2.0";
+    public const string Versao = "1.3.0";
     public const string RepoUrl = "https://github.com/gabriel-correa11/Software_mandioca";
 
     public static MauiApp CreateMauiApp()

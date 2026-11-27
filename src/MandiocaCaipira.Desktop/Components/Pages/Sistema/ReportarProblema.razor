@@ -1,0 +1,130 @@
+@page "/reportar-problema"
+@inject BugReportService BugReport
+
+<PageHeader Title="Reportar problema" Subtitle="Descreva o que aconteceu e enviaremos para o desenvolvedor" />
+
+<div class="page-body">
+    <AlertMessage Message="@_mensagem" IsError="_erro" />
+
+    @if (!BugReport.TokenConfigurado)
+    {
+        <div class="card" style="padding:24px">
+            <div class="empty-state">
+                O envio de relatórios não está configurado neste computador.<br />
+                Entre em contato com o suporte.
+            </div>
+        </div>
+    }
+    else
+    {
+        <div class="card">
+            <div class="card-header">O que aconteceu?</div>
+            <div class="card-body">
+                <div class="form-group">
+                    <label>Descreva o problema</label>
+                    <textarea class="form-input" rows="5" style="resize:vertical"
+                              placeholder="Ex: Quando cliquei em Nova Venda, o valor ficou errado..."
+                              @bind="_descricao" disabled="@_enviando"></textarea>
+                </div>
+
+                <div class="form-group" style="margin-top:14px">
+                    <label>Imagens (opcional)</label>
+                    <div style="display:flex;align-items:center;gap:12px">
+                        <button class="btn btn-secondary btn-sm" @onclick="SelecionarImagens" disabled="@_enviando">
+                            Anexar imagens
+                        </button>
+                        @if (_imagens.Count > 0)
+                        {
+                            <span style="font-size:13px;color:var(--text-secondary)">
+                                @_imagens.Count @(_imagens.Count == 1 ? "imagem selecionada" : "imagens selecionadas")
+                            </span>
+                        }
+                    </div>
+
+                    @if (_imagens.Count > 0)
+                    {
+                        <div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:10px">
+                            @foreach (var (nome, _) in _imagens)
+                            {
+                                <span class="badge">@nome</span>
+                            }
+                        </div>
+                    }
+                </div>
+
+                <div style="display:flex;align-items:center;justify-content:space-between;margin-top:20px">
+                    <span style="font-size:12px;color:var(--text-muted)">
+                        Versão @(MauiProgram.Versao) e informações do sistema serão incluídas automaticamente.
+                    </span>
+                    <button class="btn btn-primary" @onclick="Enviar"
+                            disabled="@(_enviando || string.IsNullOrWhiteSpace(_descricao))">
+                        @if (_enviando)
+                        {
+                            <span>Enviando...</span>
+                        }
+                        else
+                        {
+                            <span>Enviar relatório</span>
+                        }
+                    </button>
+                </div>
+            </div>
+        </div>
+    }
+</div>
+
+@code {
+    private string _descricao = "";
+    private readonly List<(string Nome, string Caminho)> _imagens = [];
+    private bool _enviando;
+    private string? _mensagem;
+    private bool _erro;
+
+    private async Task SelecionarImagens()
+    {
+        var opcoes = new PickOptions
+        {
+            PickerTitle = "Selecione as imagens",
+            FileTypes = FilePickerFileType.Images
+        };
+
+        var resultado = await FilePicker.Default.PickMultipleAsync(opcoes);
+        if (resultado is null) return;
+
+        _imagens.Clear();
+        foreach (var arquivo in resultado)
+            _imagens.Add((arquivo.FileName, arquivo.FullPath));
+    }
+
+    private async Task Enviar()
+    {
+        _mensagem = null;
+        _enviando = true;
+        StateHasChanged();
+
+        try
+        {
+            var caminhos = _imagens.Select(i => i.Caminho).ToList();
+            await BugReport.EnviarAsync(_descricao, caminhos);
+
+            _mensagem = "Problema enviado com sucesso! Obrigado pelo relato.";
+            _erro = false;
+            _descricao = "";
+            _imagens.Clear();
+        }
+        catch (HttpRequestException)
+        {
+            _mensagem = "Não foi possível enviar. Verifique sua conexão com a internet e tente novamente.";
+            _erro = true;
+        }
+        catch (Exception ex)
+        {
+            _mensagem = $"Erro ao enviar: {ex.Message}";
+            _erro = true;
+        }
+        finally
+        {
+            _enviando = false;
+        }
+    }
+}

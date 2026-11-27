@@ -44,6 +44,7 @@ internal static class ServiceCollectionExtensions
     {
         services.AddSingleton(new UpdateService(MauiProgram.RepoUrl));
         services.AddSingleton(new NovidadesService(MauiProgram.Versao));
+        services.AddSingleton(new BugReportService(MauiProgram.Versao));
         return services;
     }
 }

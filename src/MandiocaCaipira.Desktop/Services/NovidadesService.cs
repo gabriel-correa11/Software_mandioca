@@ -6,6 +6,13 @@ public sealed class NovidadesService
 {
     private static readonly Dictionary<string, (string Titulo, string Descricao)[]> Changelog = new()
     {
+        ["1.3.0"] =
+        [
+            ("Reportar problema", "Envie um relatório de problema com imagens direto pelo programa."),
+            ("Tela reorganizada", "Menus e páginas organizados por área: Vendas, Caixa, Compras e Sistema."),
+            ("Modo escuro", "Alterne entre claro e escuro pelo ícone no rodapé do menu."),
+            ("Visual renovado", "Tela inicial com resumo do dia e lista de vendas.")
+        ],
         ["1.2.0"] =
         [
             ("Fluxo de caixa", "Controle entradas e saídas da empresa com categorias e contas separadas."),
