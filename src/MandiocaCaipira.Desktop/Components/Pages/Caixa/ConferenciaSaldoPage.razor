@@ -2,16 +2,10 @@
 @inject ConferenciaService Conferencias
 @inject ContaCaixaRepository Contas
 
-<div class="page-header">
-    <h1>Conferência de saldo</h1>
-    <p>Compare o saldo do sistema com o saldo real (app do banco, gaveta)</p>
-</div>
+<PageHeader Title="Conferência de saldo" Subtitle="Compare o saldo do sistema com o saldo real (app do banco, gaveta)" />
 
 <div class="page-body">
-    @if (_mensagem is not null)
-    {
-        <div class="alert @(_erro ? "alert-error" : "alert-success")">@_mensagem</div>
-    }
+    <AlertMessage Message="@_mensagem" IsError="_erro" />
 
     <div class="card" style="max-width:600px;margin-bottom:20px">
         <div class="card-body">
@@ -40,7 +34,7 @@
 
             @if (_calculado)
             {
-                <div style="margin-top:20px;padding:16px;border-radius:8px;background:var(--surface)">
+                <div style="margin-top:20px;padding:16px;border-radius:8px;background:var(--bg)">
                     <div style="display:flex;gap:16px;flex-wrap:wrap">
                         <div class="metric-box" style="flex:1;min-width:140px">
                             <div class="label">Saldo no sistema</div>
@@ -48,7 +42,7 @@
                         </div>
                         <div class="metric-box" style="flex:1;min-width:140px">
                             <div class="label">Diferença</div>
-                            <div class="value" style="color:@(_diferenca == 0 ? "var(--success)" : "var(--danger)")">
+                            <div class="value" style="color:@(_diferenca == 0 ? "var(--green-700)" : "var(--red-600)")">
                                 @Fmt.Money(_diferenca)
                             </div>
                         </div>
@@ -96,7 +90,7 @@
                                 <td class="text-center">@c.DataConferencia.ToString("d", Fmt.PtBr)</td>
                                 <td class="text-right">@Fmt.Money(c.SaldoInformadoCentavos)</td>
                                 <td class="text-right">@Fmt.Money(c.SaldoSistemaCentavos)</td>
-                                <td class="text-right" style="color:@(c.DiferencaCentavos == 0 ? "var(--success)" : "var(--danger)")">
+                                <td class="text-right" style="color:@(c.DiferencaCentavos == 0 ? "var(--green-700)" : "var(--red-600)")">
                                     @Fmt.Money(c.DiferencaCentavos)
                                 </td>
                                 <td>@(c.Observacao ?? "—")</td>

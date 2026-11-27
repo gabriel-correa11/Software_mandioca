@@ -1,0 +1,72 @@
+@page "/"
+@inject VendaService Vendas
+@inject ResumoRepository Resumo
+
+<PageHeader Title="Início" />
+
+<div class="page-body">
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:20px">
+        <MetricCard Label="Saldo em aberto" Value="@Fmt.Money(_saldoAberto)" Color="--red-600" />
+        <MetricCard Label="Vendido hoje" Value="@Fmt.Money(_resumo.ValorVendidoCentavos)" Color="--green-700" />
+    </div>
+
+    <div class="card" style="padding:16px 20px;margin-bottom:20px">
+        <div style="display:flex;gap:32px;font-size:13.5px;color:var(--text-secondary)">
+            <span><strong style="color:var(--text)">@_resumo.VendasRealizadas</strong> vendas</span>
+            <span><strong style="color:var(--text)">@Fmt.Kg(_resumo.QuantidadeGramas)</strong> vendidos</span>
+            <span><strong style="color:var(--text)">@Fmt.Money(_resumo.RecebimentosCentavos)</strong> recebidos</span>
+        </div>
+    </div>
+
+    @if (_vendasHoje.Count > 0)
+    {
+        <div class="card">
+            <div class="card-header">Vendas de hoje</div>
+            <div class="table-wrapper">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Cliente</th>
+                            <th class="text-right">Quantidade</th>
+                            <th class="text-right">Valor</th>
+                            <th class="text-right">Saldo</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var v in _vendasHoje)
+                        {
+                            <tr>
+                                <td>@v.Cliente</td>
+                                <td class="text-right">@Fmt.Kg(v.QuantidadeGramas)</td>
+                                <td class="text-right">@Fmt.Money(v.TotalCentavos)</td>
+                                <td class="text-right @(v.SaldoCentavos > 0 ? "text-red" : "text-green")">
+                                    @Fmt.Money(v.SaldoCentavos)
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    }
+    else
+    {
+        <div class="card" style="padding:24px">
+            <div class="empty-state">Nenhuma venda registrada hoje.</div>
+        </div>
+    }
+</div>
+
+@code {
+    private ResumoDiario _resumo = new(0, 0, 0, 0, 0);
+    private long _saldoAberto;
+    private IReadOnlyList<VendaResumo> _vendasHoje = [];
+
+    protected override void OnInitialized()
+    {
+        var hoje = DateOnly.FromDateTime(DateTime.Today);
+        _resumo = Resumo.Obter(hoje);
+        _saldoAberto = Vendas.Listar(somentePendentes: true).Sum(v => v.SaldoCentavos);
+        _vendasHoje = Vendas.Listar(inicio: hoje, fim: hoje);
+    }
+}

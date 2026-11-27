@@ -2,15 +2,10 @@
 @inject CompraService CompraSvc
 @inject FornecedorRepository Fornecedores
 
-<div class="page-header">
-    <h1>Histórico de compras</h1>
-</div>
+<PageHeader Title="Histórico de compras" />
 
 <div class="page-body">
-    @if (_mensagem is not null)
-    {
-        <div class="alert @(_erro ? "alert-error" : "alert-success")">@_mensagem</div>
-    }
+    <AlertMessage Message="@_mensagem" IsError="_erro" />
 
     <div class="toolbar">
         <div class="form-group" style="min-width:160px">

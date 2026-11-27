@@ -1,8 +1,6 @@
 using MandiocaCaipira.App.Data;
 using MandiocaCaipira.App.Diagnostics;
-using MandiocaCaipira.App.Repositories;
 using MandiocaCaipira.App.Services;
-using MandiocaCaipira.Desktop.Services;
 using Serilog;
 using Velopack;
 
@@ -12,6 +10,7 @@ public static class MauiProgram
 {
     private static InstanciaUnica? _instancia;
 
+    public const string Versao = "1.2.0";
     public const string RepoUrl = "https://github.com/gabriel-correa11/Software_mandioca";
 
     public static MauiApp CreateMauiApp()
@@ -31,17 +30,25 @@ public static class MauiProgram
         var builder = MauiApp.CreateBuilder();
         builder
             .UseMauiApp<App>()
-            .ConfigureFonts(fonts =>
-            {
-                fonts.AddFont("OpenSans-Regular.ttf", "OpenSansRegular");
-            });
+            .ConfigureFonts(fonts => fonts.AddFont("OpenSans-Regular.ttf", "OpenSansRegular"));
 
         builder.Services.AddMauiBlazorWebView();
-
 #if DEBUG
         builder.Services.AddBlazorWebViewDeveloperTools();
 #endif
 
+        var banco = ConfigurarBancoDeDados(builder.Services);
+
+        builder.Services
+            .AddRepositories(banco)
+            .AddAppServices(banco)
+            .AddDesktopServices();
+
+        return builder.Build();
+    }
+
+    private static BancoSqlite ConfigurarBancoDeDados(IServiceCollection services)
+    {
         var banco = new BancoSqlite(CaminhosDados.Banco);
         var inicializador = new InicializadorBanco(banco, CaminhosDados.Backups, Log.Logger);
         inicializador.Inicializar();
@@ -52,37 +59,12 @@ public static class MauiProgram
         if (!backup.TentarBackupAutomatico())
             Log.Warning("Nao foi possivel criar o backup automatico de hoje");
 
-        builder.Services.AddSingleton(banco);
-        builder.Services.AddSingleton(inicializador);
-        builder.Services.AddSingleton(backup);
-        builder.Services.AddSingleton(_instancia);
+        services.AddSingleton(banco);
+        services.AddSingleton(inicializador);
+        services.AddSingleton(backup);
+        services.AddSingleton(_instancia!);
 
-        builder.Services.AddSingleton(new ClienteRepository(banco));
-        builder.Services.AddSingleton(new VendaRepository(banco));
-        builder.Services.AddSingleton(new PagamentoRepository(banco));
-        builder.Services.AddSingleton(new ResumoRepository(banco));
-        builder.Services.AddSingleton(new FornecedorRepository(banco));
-        builder.Services.AddSingleton(new CompraRepository(banco));
-        builder.Services.AddSingleton(new ConfiguracaoRendimentoRepository(banco));
-        builder.Services.AddSingleton(new ContaCaixaRepository(banco));
-        builder.Services.AddSingleton(new CategoriaMovimentoRepository(banco));
-        builder.Services.AddSingleton(new MovimentoCaixaRepository(banco));
-        builder.Services.AddSingleton(new ConferenciaSaldoRepository(banco));
-
-        builder.Services.AddSingleton<ClienteService>();
-        builder.Services.AddSingleton<VendaService>();
-        builder.Services.AddSingleton<PagamentoService>();
-        builder.Services.AddSingleton<CompraService>();
-        builder.Services.AddSingleton(new FotoService(CaminhosDados.Fotos));
-        builder.Services.AddSingleton(new ReciboService(
-            new VendaRepository(banco), new PagamentoRepository(banco), CaminhosDados.Recibos));
-        builder.Services.AddSingleton(new ImportacaoClientesService(
-            new LeitorArquivoClientes(), new ClienteRepository(banco), Log.Logger));
-        builder.Services.AddSingleton<MovimentoCaixaService>();
-        builder.Services.AddSingleton<ConferenciaService>();
-        builder.Services.AddSingleton(new UpdateService(RepoUrl));
-
-        return builder.Build();
+        return banco;
     }
 
     private static void ConfigurarTratamentoDeErros()

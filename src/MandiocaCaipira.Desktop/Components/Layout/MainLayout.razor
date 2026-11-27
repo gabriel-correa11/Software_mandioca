@@ -1,62 +1,9 @@
 @inherits LayoutComponentBase
 @inject BackupService Backup
-@inject NavigationManager Nav
+@inject NovidadesService Novidades
 
 <div class="shell">
-    <aside class="sidebar">
-        <div class="sidebar-header">Mandioca Caipira</div>
-        <nav>
-            <NavLink class="nav-item" href="" Match="NavLinkMatch.All">
-                Início
-            </NavLink>
-            <NavLink class="nav-item" href="clientes">
-                Clientes
-            </NavLink>
-            <NavLink class="nav-item" href="venda">
-                Nova venda
-            </NavLink>
-            <NavLink class="nav-item" href="pagamento">
-                Pagamento
-            </NavLink>
-            <NavLink class="nav-item" href="pendencias">
-                Pendências
-            </NavLink>
-            <NavLink class="nav-item" href="historico">
-                Histórico
-            </NavLink>
-
-            <div style="margin:8px 10px 4px;font-size:10px;text-transform:uppercase;color:rgba(255,255,255,0.4);letter-spacing:1px">Caixa</div>
-            <NavLink class="nav-item" href="fluxo-caixa">
-                Fluxo de caixa
-            </NavLink>
-            <NavLink class="nav-item" href="conferencia-saldo">
-                Conferência
-            </NavLink>
-
-            <div style="margin:8px 10px 4px;font-size:10px;text-transform:uppercase;color:rgba(255,255,255,0.4);letter-spacing:1px">Compras</div>
-            <NavLink class="nav-item" href="fornecedores">
-                Fornecedores
-            </NavLink>
-            <NavLink class="nav-item" href="nova-compra">
-                Nova compra
-            </NavLink>
-            <NavLink class="nav-item" href="historico-compras">
-                Compras
-            </NavLink>
-        </nav>
-        <div style="padding:8px 10px;border-top:1px solid rgba(255,255,255,0.15)">
-            <button class="nav-item" style="font-size:12.5px" @onclick="CriarBackup">
-                Fazer backup
-            </button>
-            <NavLink class="nav-item" href="restaurar" style="font-size:12.5px">
-                Restaurar backup
-            </NavLink>
-            <NavLink class="nav-item" href="atualizar" style="font-size:12.5px">
-                Atualizar
-            </NavLink>
-        </div>
-        <div class="sidebar-footer">v@(AppInfo.Current.VersionString)</div>
-    </aside>
+    <NavSidebar OnBackup="CriarBackup" />
     <div class="main-content">
         @Body
     </div>
@@ -64,22 +11,65 @@
 
 @if (_backupMsg is not null)
 {
-    <div style="position:fixed;inset:0;background:rgba(0,0,0,0.3);display:flex;align-items:center;justify-content:center;z-index:100">
-        <div class="card" style="width:440px">
-            <div class="card-header">Backup</div>
-            <div class="card-body">
-                <div class="alert @(_backupErro ? "alert-error" : "alert-success")">@_backupMsg</div>
-                <div class="btn-group" style="justify-content:flex-end">
-                    <button class="btn btn-secondary" @onclick="() => _backupMsg = null">Fechar</button>
-                </div>
+    <ModalOverlay OnClose="() => _backupMsg = null">
+        <div class="card-header">Backup</div>
+        <div class="card-body">
+            <AlertMessage Message="@_backupMsg" IsError="_backupErro" />
+            <div class="btn-group" style="justify-content:flex-end">
+                <button class="btn btn-secondary" @onclick="() => _backupMsg = null">Fechar</button>
             </div>
         </div>
-    </div>
+    </ModalOverlay>
+}
+
+@if (_novidades is not null)
+{
+    <ModalOverlay OnClose="FecharNovidades" Width="460">
+        <div class="card-body" style="padding:24px">
+            <h2 style="font-size:18px;font-weight:600;margin:0 0 4px">Mandioca Caipira @(_novidades.Value.Versao)</h2>
+            <p style="font-size:13px;color:var(--text-muted);margin:0 0 20px">@DateTime.Today.ToString("d 'de' MMMM 'de' yyyy", Fmt.PtBr)</p>
+
+            <p style="font-size:13px;font-weight:600;margin:0 0 10px">Destaques</p>
+
+            @foreach (var (titulo, desc) in _novidades.Value.Itens)
+            {
+                <p style="margin:0 0 8px;line-height:1.5;font-size:13.5px">
+                    <strong>@titulo.</strong> @desc
+                </p>
+            }
+
+            @if (_primeiraVez)
+            {
+                <p style="margin:16px 0 0;line-height:1.5;font-size:12.5px;color:var(--text-muted)">
+                    Se você tinha o programa em outra pasta, pode apagar ela.
+                    Seus dados ficam em @CaminhosDados.DiretorioBase.
+                </p>
+            }
+
+            <div style="text-align:right;margin-top:20px">
+                <button class="btn btn-primary" @onclick="FecharNovidades">Fechar</button>
+            </div>
+        </div>
+    </ModalOverlay>
 }
 
 @code {
     private string? _backupMsg;
     private bool _backupErro;
+    private (string Versao, (string Titulo, string Descricao)[] Itens)? _novidades;
+    private bool _primeiraVez;
+
+    protected override void OnInitialized()
+    {
+        _novidades = Novidades.Verificar();
+        _primeiraVez = Novidades.PrimeiraVez;
+    }
+
+    private void FecharNovidades()
+    {
+        Novidades.MarcarComoVisto();
+        _novidades = null;
+    }
 
     private void CriarBackup()
     {

@@ -3,16 +3,10 @@
 @inject ContaCaixaRepository Contas
 @inject CategoriaMovimentoRepository Categorias
 
-<div class="page-header">
-    <h1>Fluxo de caixa</h1>
-    <p>Controle de entradas e saídas da empresa</p>
-</div>
+<PageHeader Title="Fluxo de caixa" />
 
 <div class="page-body">
-    @if (_mensagem is not null)
-    {
-        <div class="alert @(_erro ? "alert-error" : "alert-success")">@_mensagem</div>
-    }
+    <AlertMessage Message="@_mensagem" IsError="_erro" />
 
     <div class="toolbar">
         <div class="form-group" style="margin-bottom:0">
@@ -47,11 +41,11 @@
     <div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:16px">
         <div class="metric-box" style="flex:1;min-width:160px">
             <div class="label">Entradas</div>
-            <div class="value" style="color:var(--success)">@Fmt.Money(_entradas)</div>
+            <div class="value" style="color:var(--green-700)">@Fmt.Money(_entradas)</div>
         </div>
         <div class="metric-box" style="flex:1;min-width:160px">
             <div class="label">Saídas</div>
-            <div class="value" style="color:var(--danger)">@Fmt.Money(_saidas)</div>
+            <div class="value" style="color:var(--red-600)">@Fmt.Money(_saidas)</div>
         </div>
         <div class="metric-box" style="flex:1;min-width:160px">
             <div class="label">Saldo do período</div>
@@ -110,7 +104,7 @@
                             @onclick="() => _selecionado = m">
                             <td class="text-center">@m.DataMovimento.ToString("d", Fmt.PtBr)</td>
                             <td>
-                                <span style="color:@(m.Tipo == TipoMovimento.Entrada ? "var(--success)" : "var(--danger)")">
+                                <span style="color:@(m.Tipo == TipoMovimento.Entrada ? "var(--green-700)" : "var(--red-600)")">
                                     @(m.Tipo == TipoMovimento.Entrada ? "Entrada" : "Saída")
                                 </span>
                             </td>
@@ -118,7 +112,7 @@
                             <td>@m.Descricao</td>
                             <td>@(m.Beneficiario ?? "—")</td>
                             <td>@m.Conta</td>
-                            <td class="text-right" style="color:@(cancelado ? "inherit" : m.Tipo == TipoMovimento.Entrada ? "var(--success)" : "var(--danger)")">
+                            <td class="text-right" style="color:@(cancelado ? "inherit" : m.Tipo == TipoMovimento.Entrada ? "var(--green-700)" : "var(--red-600)")">
                                 @Fmt.Money(m.ValorCentavos)
                             </td>
                             <td class="text-center">

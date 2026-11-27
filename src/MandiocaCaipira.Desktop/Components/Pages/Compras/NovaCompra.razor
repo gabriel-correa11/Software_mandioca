@@ -3,15 +3,10 @@
 @inject FornecedorRepository Fornecedores
 @inject FotoService Fotos
 
-<div class="page-header">
-    <h1>Nova compra de mandioca</h1>
-</div>
+<PageHeader Title="Nova compra de mandioca" />
 
 <div class="page-body">
-    @if (_mensagem is not null)
-    {
-        <div class="alert @(_erro ? "alert-error" : "alert-success")">@_mensagem</div>
-    }
+    <AlertMessage Message="@_mensagem" IsError="_erro" />
 
     <div class="card" style="margin-bottom:20px">
         <div class="card-body">
@@ -85,7 +80,7 @@
                         <div class="summary-sub">padrão: @Fmt.Kg(_snapshotGramasPorSaco)</div>
                     </div>
                 </div>
-                <div style="margin-top:12px;font-weight:600;@(_rendimento.PerdaAcimaDoPadrao ? "color:var(--danger)" : "color:var(--green)")">
+                <div style="margin-top:12px;font-weight:600;@(_rendimento.PerdaAcimaDoPadrao ? "color:var(--red-600)" : "color:var(--green-700)")">
                     @(_rendimento.PerdaAcimaDoPadrao ? "Perda acima do padrão" : "Dentro do padrão")
                 </div>
             </div>

@@ -2,16 +2,10 @@
 @inject ClienteService Clientes
 @inject VendaService Vendas
 
-<div class="page-header">
-    <h1>Nova venda</h1>
-    <p>Preencha os dados e confira o total antes de registrar</p>
-</div>
+<PageHeader Title="Nova venda" />
 
 <div class="page-body">
-    @if (_mensagem is not null)
-    {
-        <div class="alert @(_erro ? "alert-error" : "alert-success")">@_mensagem</div>
-    }
+    <AlertMessage Message="@_mensagem" IsError="_erro" />
 
     <div class="card" style="max-width:860px">
         <div class="card-body">

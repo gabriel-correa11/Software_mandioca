@@ -4,16 +4,10 @@
 @inject PagamentoService Pagamentos
 @inject ReciboService Recibos
 
-<div class="page-header">
-    <h1>Histórico</h1>
-    <p>Consulta de vendas e pagamentos por período</p>
-</div>
+<PageHeader Title="Histórico" />
 
 <div class="page-body">
-    @if (_mensagem is not null)
-    {
-        <div class="alert @(_erro ? "alert-error" : "alert-success")">@_mensagem</div>
-    }
+    <AlertMessage Message="@_mensagem" IsError="_erro" />
 
     <div class="toolbar">
         <div class="form-group" style="margin-bottom:0">

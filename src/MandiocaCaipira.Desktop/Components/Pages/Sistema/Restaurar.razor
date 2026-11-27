@@ -2,16 +2,10 @@
 @inject BackupService Backup
 @inject InstanciaUnica Instancia
 
-<div class="page-header">
-    <h1>Restaurar backup</h1>
-    <p>Selecione um backup para restaurar. O banco atual será substituído.</p>
-</div>
+<PageHeader Title="Restaurar backup" Subtitle="Selecione um backup para restaurar. O banco atual será substituído." />
 
 <div class="page-body">
-    @if (_mensagem is not null)
-    {
-        <div class="alert @(_erro ? "alert-error" : "alert-success")">@_mensagem</div>
-    }
+    <AlertMessage Message="@_mensagem" IsError="_erro" />
 
     <div class="card">
         <div class="table-wrapper">

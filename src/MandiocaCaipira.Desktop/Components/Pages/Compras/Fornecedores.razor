@@ -7,10 +7,7 @@
 </div>
 
 <div class="page-body">
-    @if (_mensagem is not null)
-    {
-        <div class="alert @(_erro ? "alert-error" : "alert-success")">@_mensagem</div>
-    }
+    <AlertMessage Message="@_mensagem" IsError="_erro" />
 
     <div class="toolbar">
         <label style="display:flex;align-items:center;gap:6px;font-size:13px">

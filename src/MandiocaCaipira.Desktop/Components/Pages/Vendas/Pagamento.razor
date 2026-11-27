@@ -3,16 +3,10 @@
 @inject VendaService Vendas
 @inject PagamentoService Pagamentos
 
-<div class="page-header">
-    <h1>Registrar pagamento</h1>
-    <p>Informe o valor recebido e distribua entre as vendas em aberto</p>
-</div>
+<PageHeader Title="Registrar pagamento" Subtitle="Informe o valor recebido e distribua entre as vendas em aberto" />
 
 <div class="page-body">
-    @if (_mensagem is not null)
-    {
-        <div class="alert @(_erro ? "alert-error" : "alert-success")">@_mensagem</div>
-    }
+    <AlertMessage Message="@_mensagem" IsError="_erro" />
 
     <div class="card" style="margin-bottom:16px">
         <div class="card-body">

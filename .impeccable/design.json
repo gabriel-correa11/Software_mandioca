@@ -1,0 +1,124 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-11-27T00:00:00Z",
+  "title": "Design System: Mandioca Caipira",
+  "extensions": {
+    "colorMeta": {
+      "green-700": { "role": "primary", "displayName": "Verde Mandioca", "canonical": "#2E7D32", "tonalRamp": ["#0a1f0b", "#133a16", "#1b5620", "#24712b", "#2E7D32", "#4CAF50", "#81C784", "#A5D6A7", "#C8E6C9", "#E8F5E9"] },
+      "green-600": { "role": "primary", "displayName": "Verde Médio", "canonical": "#388E3C", "tonalRamp": ["#0d240f", "#1a481e", "#276c2d", "#388E3C", "#4CAF50", "#66BB6A", "#81C784", "#A5D6A7", "#C8E6C9", "#E8F5E9"] },
+      "green-50": { "role": "primary", "displayName": "Verde Fundo", "canonical": "#E8F5E9", "tonalRamp": ["#1b5620", "#2E7D32", "#43A047", "#66BB6A", "#A5D6A7", "#C8E6C9", "#E8F5E9", "#F1F8F2", "#F7FBF7", "#FCFEFC"] },
+      "neutral-900": { "role": "neutral", "displayName": "Texto Principal", "canonical": "#212121", "tonalRamp": ["#121212", "#1a1a1a", "#212121", "#424242", "#616161", "#757575", "#9E9E9E", "#BDBDBD", "#E0E0E0", "#F5F5F5"] },
+      "red-600": { "role": "semantic", "displayName": "Vermelho Dívida", "canonical": "#E53935", "tonalRamp": ["#3e0c0b", "#6e1816", "#9f2421", "#c5302d", "#E53935", "#EF5350", "#E57373", "#EF9A9A", "#FFCDD2", "#FFEBEE"] }
+    },
+    "typographyMeta": {
+      "display": { "displayName": "Display", "purpose": "Valores grandes em summary cards. Números visíveis de longe." },
+      "title": { "displayName": "Title", "purpose": "Títulos de página. Um por tela." },
+      "body": { "displayName": "Body", "purpose": "Texto geral, células, formulários." },
+      "label": { "displayName": "Label", "purpose": "Labels, cabeçalhos de tabela, categorias." }
+    },
+    "shadows": [
+      { "name": "shadow-sm", "value": "0 1px 2px rgba(0,0,0,0.06)", "purpose": "Cards e summary cards. Separação sutil." },
+      { "name": "shadow", "value": "0 1px 3px rgba(0,0,0,0.1), 0 1px 2px rgba(0,0,0,0.06)", "purpose": "Modais e dropdowns. Separação mais forte." }
+    ],
+    "motion": [
+      { "name": "transition-fast", "value": "150ms ease", "purpose": "Hover em botões e nav items." }
+    ],
+    "breakpoints": []
+  },
+  "components": [
+    {
+      "name": "Primary Button",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "Ação principal. Verde sólido, texto branco.",
+      "html": "<button class=\"ds-btn-primary\">Salvar</button>",
+      "css": ".ds-btn-primary { display: inline-flex; align-items: center; justify-content: center; gap: 6px; padding: 8px 18px; border: none; border-radius: 6px; font-size: 13.5px; font-weight: 500; font-family: 'Segoe UI', system-ui, sans-serif; cursor: pointer; background: #2E7D32; color: #fff; transition: background 150ms ease; } .ds-btn-primary:hover { background: #388E3C; } .ds-btn-primary:focus-visible { outline: 2px solid #43A047; outline-offset: 2px; } .ds-btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }"
+    },
+    {
+      "name": "Secondary Button",
+      "kind": "button",
+      "refersTo": "button-secondary",
+      "description": "Ação secundária. Cinza neutro.",
+      "html": "<button class=\"ds-btn-secondary\">Cancelar</button>",
+      "css": ".ds-btn-secondary { display: inline-flex; align-items: center; justify-content: center; gap: 6px; padding: 8px 18px; border: none; border-radius: 6px; font-size: 13.5px; font-weight: 500; font-family: 'Segoe UI', system-ui, sans-serif; cursor: pointer; background: #EEEEEE; color: #424242; transition: background 150ms ease; } .ds-btn-secondary:hover { background: #E0E0E0; } .ds-btn-secondary:focus-visible { outline: 2px solid #43A047; outline-offset: 2px; }"
+    },
+    {
+      "name": "Danger Button",
+      "kind": "button",
+      "refersTo": "button-danger",
+      "description": "Ação destrutiva. Vermelho para cancelamentos.",
+      "html": "<button class=\"ds-btn-danger\">Cancelar movimento</button>",
+      "css": ".ds-btn-danger { display: inline-flex; align-items: center; justify-content: center; gap: 6px; padding: 8px 18px; border: none; border-radius: 6px; font-size: 13.5px; font-weight: 500; font-family: 'Segoe UI', system-ui, sans-serif; cursor: pointer; background: #E53935; color: #fff; transition: background 150ms ease; } .ds-btn-danger:hover { background: #C62828; } .ds-btn-danger:focus-visible { outline: 2px solid #E53935; outline-offset: 2px; }"
+    },
+    {
+      "name": "Card",
+      "kind": "card",
+      "refersTo": "card",
+      "description": "Container principal. Borda leve, sombra rasa.",
+      "html": "<div class=\"ds-card\"><div class=\"ds-card-header\">Clientes</div><div class=\"ds-card-body\">Conteúdo aqui</div></div>",
+      "css": ".ds-card { background: #fff; border: 1px solid #EEEEEE; border-radius: 8px; box-shadow: 0 1px 2px rgba(0,0,0,0.06); } .ds-card-header { padding: 14px 18px; font-weight: 600; font-size: 14px; border-bottom: 1px solid #EEEEEE; } .ds-card-body { padding: 18px; }"
+    },
+    {
+      "name": "Text Input",
+      "kind": "input",
+      "refersTo": "input",
+      "description": "Campo de texto padrão com foco verde.",
+      "html": "<div class=\"ds-form-group\"><label class=\"ds-label\">Quantidade (g)</label><input class=\"ds-input\" type=\"text\" placeholder=\"0\" /></div>",
+      "css": ".ds-form-group { margin-bottom: 14px; } .ds-label { display: block; font-size: 12.5px; font-weight: 500; color: #757575; margin-bottom: 4px; } .ds-input { width: 100%; padding: 8px 12px; border: 1px solid #E0E0E0; border-radius: 6px; font-size: 14px; font-family: 'Segoe UI', system-ui, sans-serif; background: #fff; color: #212121; outline: none; transition: border-color 150ms ease; } .ds-input:focus { border-color: #43A047; box-shadow: 0 0 0 3px rgba(67,160,71,0.12); }"
+    },
+    {
+      "name": "Nav Item",
+      "kind": "nav",
+      "refersTo": null,
+      "description": "Item de navegação na sidebar verde.",
+      "html": "<a class=\"ds-nav-item\" href=\"#\">Pendências</a>",
+      "css": ".ds-nav-item { display: flex; align-items: center; gap: 10px; padding: 10px 16px; color: rgba(255,255,255,0.85); text-decoration: none; font-size: 13.5px; cursor: pointer; transition: background 150ms ease; border: none; background: none; width: 100%; text-align: left; } .ds-nav-item:hover { background: rgba(255,255,255,0.1); color: #fff; } .ds-nav-item.active { background: rgba(255,255,255,0.18); color: #fff; font-weight: 500; }"
+    },
+    {
+      "name": "Badge",
+      "kind": "chip",
+      "refersTo": null,
+      "description": "Status pequeno. Verde para pago, vermelho para pendente.",
+      "html": "<span class=\"ds-badge ds-badge-green\">Pago</span> <span class=\"ds-badge ds-badge-red\">Pendente</span>",
+      "css": ".ds-badge { display: inline-block; padding: 2px 8px; border-radius: 10px; font-size: 11.5px; font-weight: 500; } .ds-badge-green { background: #E8F5E9; color: #2E7D32; } .ds-badge-red { background: #FFEBEE; color: #E53935; } .ds-badge-gray { background: #EEEEEE; color: #616161; }"
+    },
+    {
+      "name": "Summary Card",
+      "kind": "card",
+      "refersTo": null,
+      "description": "Métrica de destaque com label + valor grande.",
+      "html": "<div class=\"ds-summary-card\"><div class=\"ds-summary-label\">TOTAL PENDENTE</div><div class=\"ds-summary-value ds-summary-red\">R$ 1.250,00</div></div>",
+      "css": ".ds-summary-card { background: #fff; border: 1px solid #EEEEEE; border-radius: 8px; padding: 16px; box-shadow: 0 1px 2px rgba(0,0,0,0.06); } .ds-summary-label { font-size: 12px; color: #757575; text-transform: uppercase; letter-spacing: 0.3px; margin-bottom: 6px; } .ds-summary-value { font-size: 22px; font-weight: 700; color: #212121; } .ds-summary-value.ds-summary-green { color: #2E7D32; } .ds-summary-value.ds-summary-red { color: #E53935; }"
+    }
+  ],
+  "narrative": {
+    "northStar": "A Bancada Limpa",
+    "overview": "O sistema visual do Mandioca Caipira é uma bancada de trabalho bem organizada: tudo tem lugar, nada distrai, e o que importa está à mão. O verde da mandioca marca a identidade sem invadir; a interface é predominantemente neutra, com o verde reservado para ações primárias e confirmações. A densidade é média — compacta o suficiente para tabelas com muitos registros, mas com respiro suficiente para não cansar o olho durante o dia inteiro de uso.\n\nA filosofia é de ferramenta, não de vitrine. Nenhum elemento decorativo existe sem função. Sombras são rasas e servem apenas para separar camadas. Tipografia é a do sistema operacional — Segoe UI no Windows — porque o usuário já conhece e porque elimina carregamento de fontes em um app offline.",
+    "keyCharacteristics": [
+      "Neutro com acento verde funcional",
+      "Densidade média, otimizada para tabelas e formulários",
+      "Zero decoração sem função",
+      "Fonte do sistema, sem dependências externas",
+      "Hierarquia por peso tipográfico, não por cor ou tamanho excessivo"
+    ],
+    "rules": [
+      { "name": "A Regra do Verde Contido", "body": "Verde só aparece em: sidebar, botões primários, badges/alertas de sucesso, e valores monetários positivos. Se o verde estiver em mais de 15% de uma tela, está demais.", "section": "colors" },
+      { "name": "A Regra do Peso, Não do Tamanho", "body": "Hierarquia se faz com font-weight (400 → 500 → 600 → 700), não inflando font-size. A diferença entre o menor texto (12px) e o maior (22px) é de menos de 2x.", "section": "typography" },
+      { "name": "A Regra da Sombra Invisível", "body": "Se o usuário perceber a sombra conscientemente, ela está forte demais. Sombras são estruturais, não estéticas.", "section": "elevation" }
+    ],
+    "dos": [
+      "Do usar o verde apenas para ações primárias, confirmações e a sidebar. Nunca como decoração.",
+      "Do manter todos os valores monetários alinhados à direita nas tabelas.",
+      "Do usar a mesma estrutura page-header + page-body em toda tela nova.",
+      "Do mostrar estados vazios com texto centralizado em cor apagada (#9E9E9E).",
+      "Do usar bordas finas (1px #EEEEEE) como separador principal, não sombras."
+    ],
+    "donts": [
+      "Don't usar mais de uma cor de acento por tela além do verde e vermelho semântico.",
+      "Don't usar border-radius maior que 10px em nenhum componente (exceto badges de status).",
+      "Don't adicionar ícones decorativos. Ícones só onde há ambiguidade sem eles.",
+      "Don't usar fontes externas. Segoe UI e o stack de sistema são suficientes.",
+      "Don't criar sombras com blur maior que 3px. Se precisa de mais separação, use borda."
+    ]
+  }
+}

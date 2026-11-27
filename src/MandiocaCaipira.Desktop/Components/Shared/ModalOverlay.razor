@@ -1,0 +1,11 @@
+<div class="modal-backdrop" @onclick="OnClose" @onclick:stopPropagation="true">
+    <div class="modal-panel" style="@($"width:{Width}px")" @onclick:stopPropagation="true">
+        @ChildContent
+    </div>
+</div>
+
+@code {
+    [Parameter, EditorRequired] public RenderFragment ChildContent { get; set; } = default!;
+    [Parameter] public EventCallback OnClose { get; set; }
+    [Parameter] public int Width { get; set; } = 440;
+}

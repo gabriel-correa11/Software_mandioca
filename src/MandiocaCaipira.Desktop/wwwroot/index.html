@@ -18,6 +18,19 @@
         <span class="dismiss">X</span>
     </div>
 
+    <script>
+        (function() {
+            var t = localStorage.getItem('theme');
+            if (t) document.documentElement.setAttribute('data-theme', t);
+        })();
+        function setTheme(t) {
+            document.documentElement.setAttribute('data-theme', t);
+            localStorage.setItem('theme', t);
+        }
+        function getTheme() {
+            return localStorage.getItem('theme') || 'light';
+        }
+    </script>
     <script src="_framework/blazor.webview.js" autostart="false"></script>
 </body>
 </html>
